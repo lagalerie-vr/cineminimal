@@ -19,6 +19,7 @@ interface VideoPlayerProps {
 }
 
 const PROVIDERS = [
+  { name: 'videasy', url: 'https://player.videasy.net', type: 'tmdb' },
   { name: 'vidsrc.sbs', url: 'https://vidsrc.sbs/embed', type: 'tmdb' },
   { name: 'vidsrc.to', url: 'https://vidsrc.to/embed', type: 'tmdb' },
   { name: 'vidsrc.me', url: 'https://vidsrc.me/embed', type: 'tmdb' },
