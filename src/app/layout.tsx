@@ -59,7 +59,7 @@ export default function RootLayout({
           <footer className="py-12 border-t border-white/5 mt-20">
             <div className="container mx-auto px-6 text-center text-muted text-sm">
               <p>&copy; {new Date().getFullYear()} CineMinimal. All rights reserved.</p>
-              <p className="mt-2 text-xs">Powered by TMDB & VidSrc</p>
+              <p className="mt-2 text-xs">Created with &hearts; by Mohamed Elwed</p>
             </div>
           </footer>
         </AuthProvider>
