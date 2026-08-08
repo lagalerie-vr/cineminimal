@@ -19,10 +19,8 @@ interface VideoPlayerProps {
 }
 
 const PROVIDERS = [
-  { name: 'vidsrc.xyz', url: 'https://vidsrc.xyz/embed', type: 'tmdb' },
-  { name: 'vidsrc.stream', url: 'https://vidsrc.stream/embed', type: 'tmdb' },
+  { name: 'vidsrc.sbs', url: 'https://vidsrc.sbs/embed', type: 'tmdb' },
   { name: 'vidsrc.to', url: 'https://vidsrc.to/embed', type: 'tmdb' },
-  { name: 'vidsrc.pro', url: 'https://vidsrc.pro/embed', type: 'tmdb' },
   { name: 'vidsrc.me', url: 'https://vidsrc.me/embed', type: 'tmdb' },
 ];
 
@@ -73,6 +71,14 @@ const VideoPlayer = ({
     const timer = setTimeout(recordHistory, 10000);
     return () => clearTimeout(timer);
   }, [user, id, type, season, episode, isVideoMode, posterPath, title]);
+
+  // If a provider fails to load (dead domain, blocked request), the iframe's
+  // onLoad never fires — clear the spinner so the user can switch servers.
+  useEffect(() => {
+    if (!isLoading) return;
+    const timer = setTimeout(() => setIsLoading(false), 15000);
+    return () => clearTimeout(timer);
+  }, [isLoading, activeProvider, isVideoMode, season, episode]);
 
   const fetchYoutubeResults = async () => {
     setYtLoading(true);
