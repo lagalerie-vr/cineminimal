@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { Loader2, RefreshCw, Server, PlayCircle, Video as VideoIcon, Film, Tv, Play, Lightbulb, LightbulbOff, Maximize } from 'lucide-react';
+import { Loader2, RefreshCw, Server, PlayCircle, Video as VideoIcon, Film, Tv, Play, Lightbulb, LightbulbOff, Maximize, Rows2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from './AuthProvider';
 import { supabase } from '@/lib/supabase';
@@ -27,6 +27,24 @@ const PROVIDERS = [
   { name: 'vidsrc.me', url: 'https://vidsrc.me/embed', type: 'tmdb' },
 ];
 
+// The "brainrot" split-screen easter egg — looping background footage under
+// the real stream, TikTok-reel style. One is picked at random each time the
+// mode is turned on. Muted so it doesn't fight the movie's audio; loop needs
+// playlist=<same id> since YouTube ignores loop=1 alone for a single video.
+const GENZ_VIDEO_IDS = [
+  'Moi2b5mLlk8',
+  'UzPvJKDrcGg',
+  'gICE0rPEeAw',
+  '3XK1JWJI_xI',
+  '46IpbQ_0FUw',
+  'uIH1P2X9VY0',
+];
+
+function getGenZEmbedUrl() {
+  const id = GENZ_VIDEO_IDS[Math.floor(Math.random() * GENZ_VIDEO_IDS.length)];
+  return `https://www.youtube.com/embed/${id}?autoplay=1&mute=1&loop=1&playlist=${id}&controls=0&modestbranding=1&rel=0`;
+}
+
 const VideoPlayer = ({ 
   type, 
   id, 
@@ -42,6 +60,14 @@ const VideoPlayer = ({
   const [isLoading, setIsLoading] = useState(true);
   const [activeProvider, setActiveProvider] = useState(PROVIDERS[0]);
   const [lightsOff, setLightsOff] = useState(false);
+  // Invariant maintained by every setter that touches these: genZMode true
+  // always implies lightsOff true, since the split layout only makes sense
+  // inside the centered theater box.
+  const [genZMode, setGenZMode] = useState(false);
+  // Picked once per activation, not recomputed on every render — otherwise
+  // any unrelated re-render (e.g. a progress tick) would reroll the iframe
+  // src and restart the clip.
+  const [genZEmbedUrl, setGenZEmbedUrl] = useState('');
   const [mounted, setMounted] = useState(false);
   const playerRef = useRef<HTMLDivElement>(null);
   const slotRef = useRef<HTMLDivElement>(null);
@@ -49,11 +75,14 @@ const VideoPlayer = ({
 
   useEffect(() => setMounted(true), []);
 
-  // Escape exits lights-off mode from anywhere on the page.
+  // Escape exits lights-off (and Gen Z) mode from anywhere on the page.
   useEffect(() => {
     if (!lightsOff) return;
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setLightsOff(false);
+      if (e.key === 'Escape') {
+        setLightsOff(false);
+        setGenZMode(false);
+      }
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
@@ -223,7 +252,10 @@ const VideoPlayer = ({
           {lightsOff && (
             <div
               className="fixed inset-0 z-[9990] bg-black/70 backdrop-blur-2xl cursor-pointer"
-              onClick={() => setLightsOff(false)}
+              onClick={() => {
+                setLightsOff(false);
+                setGenZMode(false);
+              }}
             />
           )}
 
@@ -231,7 +263,19 @@ const VideoPlayer = ({
             ref={playerRef}
             className="overflow-hidden bg-black shadow-2xl border border-white/5 group rounded-3xl"
             style={
-              lightsOff
+              genZMode
+                ? {
+                    // Portrait "reel" shape — the whole point of the bit.
+                    position: 'fixed',
+                    top: '50%',
+                    left: '50%',
+                    transform: 'translate(-50%, -50%)',
+                    height: '88vh',
+                    aspectRatio: '9 / 16',
+                    maxWidth: '95vw',
+                    zIndex: 9999,
+                  }
+                : lightsOff
                 ? {
                     position: 'fixed',
                     top: '50%',
@@ -252,28 +296,62 @@ const VideoPlayer = ({
                   }
             }
           >
-            {isLoading && (
-              <div className="absolute inset-0 flex flex-col items-center justify-center bg-black z-10">
-                <Loader2 className="animate-spin text-accent mb-4" size={40} />
-                <p className="text-muted text-sm font-medium uppercase tracking-widest">
-                  {isVideoMode ? 'Initialising Stream...' : 'Loading Trailer...'}
-                </p>
-              </div>
-            )}
+            <div className={`w-full h-full ${genZMode ? 'flex flex-col' : ''}`}>
+              <div className={`relative ${genZMode ? 'w-full h-1/2' : 'w-full h-full'}`}>
+                {isLoading && (
+                  <div className="absolute inset-0 flex flex-col items-center justify-center bg-black z-10">
+                    <Loader2 className="animate-spin text-accent mb-4" size={40} />
+                    <p className="text-muted text-sm font-medium uppercase tracking-widest">
+                      {isVideoMode ? 'Initialising Stream...' : 'Loading Trailer...'}
+                    </p>
+                  </div>
+                )}
 
-            <iframe
-              ref={iframeRef}
-              key={`${isVideoMode}-${currentTrailerKey}-${activeProvider.url}-${season}-${episode}`}
-              src={getEmbedUrl()}
-              className="w-full h-full"
-              allowFullScreen
-              allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
-              referrerPolicy="no-referrer"
-              onLoad={() => setIsLoading(false)}
-              frameBorder="0"
-            />
+                <iframe
+                  ref={iframeRef}
+                  key={`${isVideoMode}-${currentTrailerKey}-${activeProvider.url}-${season}-${episode}`}
+                  src={getEmbedUrl()}
+                  className="w-full h-full"
+                  allowFullScreen
+                  allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
+                  referrerPolicy="no-referrer"
+                  onLoad={() => setIsLoading(false)}
+                  frameBorder="0"
+                />
+              </div>
+
+              {genZMode && (
+                <div className="relative w-full h-1/2 border-t-2 border-accent/60">
+                  <iframe
+                    src={genZEmbedUrl}
+                    className="w-full h-full"
+                    allow="autoplay; encrypted-media"
+                    frameBorder="0"
+                  />
+                  <span className="absolute top-2 left-2 px-2 py-0.5 rounded-md bg-black/60 backdrop-blur-md border border-white/10 text-[9px] font-bold uppercase tracking-widest text-white/70">
+                    Subway Surfers
+                  </span>
+                </div>
+              )}
+            </div>
 
             <div className="absolute top-4 right-4 flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity z-30">
+              <button
+                onClick={() => {
+                  const enable = !genZMode;
+                  if (enable) setGenZEmbedUrl(getGenZEmbedUrl());
+                  setGenZMode(enable);
+                  setLightsOff(enable);
+                }}
+                className={`p-2 backdrop-blur-md rounded-full transition-colors border ${
+                  genZMode
+                    ? 'bg-gradient-to-r from-pink-500 to-purple-500 text-white border-transparent'
+                    : 'bg-black/60 text-white/70 hover:text-white border-white/10'
+                }`}
+                title={genZMode ? 'Exit Gen Z Mode' : 'Gen Z Mode'}
+              >
+                <Rows2 size={18} />
+              </button>
               <button
                 onClick={() => {
                   const el = playerRef.current;
@@ -287,7 +365,10 @@ const VideoPlayer = ({
                 <Maximize size={18} />
               </button>
               <button
-                onClick={() => setLightsOff((v) => !v)}
+                onClick={() => {
+                  setLightsOff((v) => !v);
+                  setGenZMode(false);
+                }}
                 className={`p-2 backdrop-blur-md rounded-full transition-colors border ${
                   lightsOff
                     ? 'bg-accent/80 text-white border-accent'
