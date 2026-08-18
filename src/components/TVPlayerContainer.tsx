@@ -9,7 +9,6 @@ import MovieCard from './MovieCard';
 import { Star, Calendar, Users, List, Bookmark, ChevronRight, Check } from 'lucide-react';
 import { getImageUrl } from '@/lib/imageUrl';
 import WatchlistButton from './WatchlistButton';
-import AdSpace from './AdSpace';
 import ReviewSection from './ReviewSection';
 import {
   getLastPosition,
@@ -116,8 +115,6 @@ const TVPlayerContainer = ({ show }: TVPlayerContainerProps) => {
 
   return (
     <div className="container mx-auto px-6 -mt-40 relative z-20 space-y-8">
-      <AdSpace type="banner" className="mt-8 mb-4 opacity-80" />
-      
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
         {/* Left Column: Player and Details */}
         <div className="lg:col-span-2 space-y-8">
@@ -301,7 +298,6 @@ const TVPlayerContainer = ({ show }: TVPlayerContainerProps) => {
 
         {/* Right Column: Recommendations & Ads */}
         <div className="space-y-8 flex flex-col">
-          <AdSpace type="portrait" className="flex-1 min-h-[400px]" />
           <h3 className="text-xl font-bold text-white tracking-tight pt-4">Similar Shows</h3>
           <div className="grid grid-cols-2 lg:grid-cols-1 gap-6">
             {show.recommendations.results.slice(0, 4).map((rec: any) => (
@@ -316,8 +312,6 @@ const TVPlayerContainer = ({ show }: TVPlayerContainerProps) => {
               />
             ))}
           </div>
-
-          <AdSpace type="portrait" className="mt-8" />
         </div>
       </div>
     </div>

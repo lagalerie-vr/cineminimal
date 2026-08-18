@@ -4,7 +4,6 @@ import React, { useState, useEffect, useRef } from 'react';
 import useInView from '@/hooks/useInView';
 import MovieCard from './MovieCard';
 import { Loader2, Film } from 'lucide-react';
-import AdSpace from './AdSpace';
 
 const InfiniteScrollList = ({ initialItems, type, filters }: { initialItems: any[], type: 'movie' | 'tv' | 'all', filters: any }) => {
   const [items, setItems] = useState(initialItems);
@@ -67,32 +66,17 @@ const InfiniteScrollList = ({ initialItems, type, filters }: { initialItems: any
           </div>
         </div>
       ) : (
-        <div className="space-y-12">
-          {/* Render items in chunks of 18 (3 rows) to insert ads */}
-          {Array.from({ length: Math.ceil(items.length / 18) }).map((_, chunkIdx) => (
-            <React.Fragment key={chunkIdx}>
-              <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-6">
-                {items.slice(chunkIdx * 18, (chunkIdx + 1) * 18).map((item: any, idx) => (
-                  <MovieCard 
-                    key={`${item.id}-${chunkIdx}-${idx}`}
-                    id={item.id}
-                    title={item.title || item.name}
-                    posterPath={item.poster_path}
-                    rating={item.vote_average}
-                    date={item.release_date || item.first_air_date || ''}
-                    type={item.title ? 'movie' : 'tv'}
-                  />
-                ))}
-              </div>
-              
-              {/* Insert Ad after every chunk except potentially the last one if it's small, 
-                  but user said 'every 3 rows' so we insert it between chunks */}
-              {((chunkIdx + 1) * 18 < items.length || hasMore) && (
-                <div className="py-4">
-                  <AdSpace type="banner" />
-                </div>
-              )}
-            </React.Fragment>
+        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-6">
+          {items.map((item: any, idx) => (
+            <MovieCard
+              key={`${item.id}-${idx}`}
+              id={item.id}
+              title={item.title || item.name}
+              posterPath={item.poster_path}
+              rating={item.vote_average}
+              date={item.release_date || item.first_air_date || ''}
+              type={item.title ? 'movie' : 'tv'}
+            />
           ))}
         </div>
       )}

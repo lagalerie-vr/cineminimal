@@ -2,7 +2,6 @@ import React from 'react';
 import { getTrending, getPopular, getNowPlaying, getAnimeMix } from '@/lib/tmdb';
 import HeroSection from '@/components/HeroSection';
 import ContentRow from '@/components/ContentRow';
-import AdSpace from '@/components/AdSpace';
 
 export default async function Home() {
   const [
@@ -39,8 +38,6 @@ export default async function Home() {
           type="all" 
         />
 
-        <AdSpace type="banner" />
-
         <ContentRow 
           title="Most Watched Movies" 
           items={popularMovies.results} 
@@ -58,8 +55,6 @@ export default async function Home() {
           items={popularTV.results} 
           type="tv" 
         />
-
-        <AdSpace type="banner" />
 
         <ContentRow 
           title="Newest Movie Releases" 
@@ -79,8 +74,6 @@ export default async function Home() {
           items={trending.slice(10)} 
           type="all" 
         />
-        
-        <AdSpace type="banner" />
       </div>
     </div>
   );

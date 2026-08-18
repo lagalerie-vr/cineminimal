@@ -2,7 +2,6 @@ import React from 'react';
 import { searchTMDB } from '@/lib/tmdb';
 import MovieCard from '@/components/MovieCard';
 import { Search as SearchIcon } from 'lucide-react';
-import AdSpace from '@/components/AdSpace';
 
 export default async function SearchPage({ searchParams }: { searchParams: Promise<{ q: string }> }) {
   const { q } = await searchParams;
@@ -46,8 +45,6 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
             <p className="text-muted">No results found for your search.</p>
           </div>
         )}
-
-        <AdSpace type="banner" />
       </div>
     </div>
   );
