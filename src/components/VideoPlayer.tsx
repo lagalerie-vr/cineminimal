@@ -265,14 +265,16 @@ const VideoPlayer = ({
             style={
               genZMode
                 ? {
-                    // Portrait "reel" shape — the whole point of the bit.
+                    // Fills almost the whole viewport — a strict 9:16 phone
+                    // shape looked authentic but wasted most of a desktop
+                    // screen either side of it, so both halves get real
+                    // estate instead.
                     position: 'fixed',
                     top: '50%',
                     left: '50%',
                     transform: 'translate(-50%, -50%)',
-                    height: '88vh',
-                    aspectRatio: '9 / 16',
-                    maxWidth: '95vw',
+                    width: '96vw',
+                    height: '94vh',
                     zIndex: 9999,
                   }
                 : lightsOff
