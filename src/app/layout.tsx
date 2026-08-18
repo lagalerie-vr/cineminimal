@@ -38,6 +38,9 @@ export const metadata: Metadata = {
     description: "High-quality streaming with a minimalist interface.",
     images: ["/og-image.png"],
   },
+  other: {
+    "google-adsense-account": "ca-pub-5100101778180471",
+  },
 };
 
 export default function RootLayout({

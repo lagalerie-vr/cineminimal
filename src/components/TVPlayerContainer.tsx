@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useSearchParams, usePathname } from 'next/navigation';
@@ -14,9 +14,11 @@ import ReviewSection from './ReviewSection';
 import {
   getLastPosition,
   setLastPosition,
-  markEpisodeWatched,
   toggleEpisodeWatched,
   getWatchedKeys,
+  getEpisodePositions,
+  setEpisodePosition,
+  type EpisodePosition,
 } from '@/lib/episodeProgress';
 
 interface TVPlayerContainerProps {
@@ -43,6 +45,7 @@ const TVPlayerContainer = ({ show }: TVPlayerContainerProps) => {
   // Watched marks are also client-only state; start empty (matches SSR) and
   // hydrate from localStorage after mount.
   const [watchedKeys, setWatchedKeys] = useState<Set<string>>(new Set());
+  const [positions, setPositions] = useState<Record<string, EpisodePosition>>({});
 
   const updateUrl = (season: number, episode: number) => {
     const url = `${pathname}?season=${season}&episode=${episode}`;
@@ -69,18 +72,21 @@ const TVPlayerContainer = ({ show }: TVPlayerContainerProps) => {
       }
     }
     setWatchedKeys(getWatchedKeys(show.id));
+    setPositions(getEpisodePositions(show.id));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [show.id]);
 
-  // Mark the episode currently playing as watched after a short delay, so a
-  // stray click doesn't immediately flag something as seen.
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      markEpisodeWatched(show.id, activeSeason, activeEpisode);
-      setWatchedKeys((prev) => new Set(prev).add(`${activeSeason}-${activeEpisode}`));
-    }, 20000);
-    return () => clearTimeout(timer);
-  }, [show.id, activeSeason, activeEpisode]);
+  // Real playback position from the player, reported about once a second.
+  // setEpisodePosition marks the episode watched once it's far enough in and
+  // returns false when nothing actually changed, so idle ticks cost nothing.
+  const handleProgress = useCallback(
+    ({ watched, duration }: { watched: number; duration: number }) => {
+      if (!setEpisodePosition(show.id, activeSeason, activeEpisode, watched, duration)) return;
+      setPositions(getEpisodePositions(show.id));
+      setWatchedKeys(getWatchedKeys(show.id));
+    },
+    [show.id, activeSeason, activeEpisode]
+  );
 
   const toggleWatched = (season: number, episode: number) => {
     toggleEpisodeWatched(show.id, season, episode);
@@ -124,6 +130,7 @@ const TVPlayerContainer = ({ show }: TVPlayerContainerProps) => {
             title={show.name}
             posterPath={show.poster_path}
             videos={show.videos.results}
+            onProgress={handleProgress}
           />
           
           <div className="space-y-6">
@@ -200,8 +207,16 @@ const TVPlayerContainer = ({ show }: TVPlayerContainerProps) => {
 
               <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-5 gap-3">
                 {Array.from({ length: currentSeason?.episode_count || 0 }, (_, i) => i + 1).map((ep) => {
+                  const key = `${activeSeason}-${ep}`;
                   const isActive = ep === activeEpisode;
-                  const isWatched = watchedKeys.has(`${activeSeason}-${ep}`);
+                  const isWatched = watchedKeys.has(key);
+                  const position = positions[key];
+                  // Only meaningful mid-episode: 0% and "finished" are already
+                  // conveyed by the tile's own styling.
+                  const partial =
+                    position && position.duration > 0 && !isWatched
+                      ? Math.min(100, Math.round((position.watched / position.duration) * 100))
+                      : 0;
                   return (
                     <button
                       key={ep}
@@ -230,6 +245,14 @@ const TVPlayerContainer = ({ show }: TVPlayerContainerProps) => {
                       >
                         <Check size={11} strokeWidth={3} />
                       </span>
+                      {partial > 0 && (
+                        <span className="absolute bottom-0 left-0 right-0 h-1 rounded-b-xl bg-white/10 overflow-hidden">
+                          <span
+                            className="block h-full bg-accent/80"
+                            style={{ width: `${partial}%` }}
+                          />
+                        </span>
+                      )}
                     </button>
                   );
                 })}
