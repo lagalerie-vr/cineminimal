@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { Suspense } from 'react';
 import Image from 'next/image';
 import { getTVDetails } from '@/lib/tmdb';
 import { getImageUrl } from '@/lib/imageUrl';
@@ -22,7 +22,9 @@ export default async function TVPage({ params }: { params: Promise<{ id: string 
         <div className="absolute inset-0 bg-gradient-to-t from-background via-background/40 to-transparent" />
       </div>
 
-      <TVPlayerContainer show={show} />
+      <Suspense fallback={null}>
+        <TVPlayerContainer show={show} />
+      </Suspense>
     </div>
   );
 }

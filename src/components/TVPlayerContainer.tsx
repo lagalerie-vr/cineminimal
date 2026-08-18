@@ -1,24 +1,110 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
+import { useSearchParams, usePathname } from 'next/navigation';
 import VideoPlayer from './VideoPlayer';
 import MovieCard from './MovieCard';
-import { Star, Calendar, Users, List, Bookmark, ChevronRight } from 'lucide-react';
+import { Star, Calendar, Users, List, Bookmark, ChevronRight, Check } from 'lucide-react';
 import { getImageUrl } from '@/lib/imageUrl';
 import WatchlistButton from './WatchlistButton';
 import AdSpace from './AdSpace';
 import ReviewSection from './ReviewSection';
+import {
+  getLastPosition,
+  setLastPosition,
+  markEpisodeWatched,
+  toggleEpisodeWatched,
+  getWatchedKeys,
+} from '@/lib/episodeProgress';
 
 interface TVPlayerContainerProps {
   show: any;
 }
 
 const TVPlayerContainer = ({ show }: TVPlayerContainerProps) => {
-  const [activeSeason, setActiveSeason] = useState(1);
-  const [activeEpisode, setActiveEpisode] = useState(1);
-  
+  const searchParams = useSearchParams();
+  const pathname = usePathname();
+
+  // Search params reflect the requested URL identically on server and client,
+  // so it's safe to use them for the initial render (no hydration mismatch).
+  // localStorage isn't available during SSR, so the "resume last episode"
+  // fallback is applied after mount instead, in the effect below.
+  const urlSeason = Number(searchParams.get('season'));
+  const urlEpisode = Number(searchParams.get('episode'));
+  const [position, setPosition] = useState(() =>
+    urlSeason > 0 && urlEpisode > 0
+      ? { season: urlSeason, episode: urlEpisode }
+      : { season: 1, episode: 1 }
+  );
+  const { season: activeSeason, episode: activeEpisode } = position;
+
+  // Watched marks are also client-only state; start empty (matches SSR) and
+  // hydrate from localStorage after mount.
+  const [watchedKeys, setWatchedKeys] = useState<Set<string>>(new Set());
+
+  const updateUrl = (season: number, episode: number) => {
+    const url = `${pathname}?season=${season}&episode=${episode}`;
+    window.history.replaceState(null, '', url);
+  };
+
+  const selectEpisode = (season: number, episode: number) => {
+    setPosition({ season, episode });
+    setLastPosition(show.id, season, episode);
+    updateUrl(season, episode);
+  };
+
+  // On mount: if the URL didn't specify an episode, resume where the viewer
+  // left off; either way, load the watched marks and make sure the URL
+  // reflects the episode actually playing.
+  useEffect(() => {
+    if (!(urlSeason > 0 && urlEpisode > 0)) {
+      const last = getLastPosition(show.id);
+      if (last) {
+        setPosition(last);
+        updateUrl(last.season, last.episode);
+      } else {
+        updateUrl(1, 1);
+      }
+    }
+    setWatchedKeys(getWatchedKeys(show.id));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [show.id]);
+
+  // Mark the episode currently playing as watched after a short delay, so a
+  // stray click doesn't immediately flag something as seen.
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      markEpisodeWatched(show.id, activeSeason, activeEpisode);
+      setWatchedKeys((prev) => new Set(prev).add(`${activeSeason}-${activeEpisode}`));
+    }, 20000);
+    return () => clearTimeout(timer);
+  }, [show.id, activeSeason, activeEpisode]);
+
+  const toggleWatched = (season: number, episode: number) => {
+    toggleEpisodeWatched(show.id, season, episode);
+    setWatchedKeys(getWatchedKeys(show.id));
+  };
+
+  const seasonsWithEpisodes = useMemo(
+    () => show.seasons.filter((s: any) => s.season_number > 0),
+    [show.seasons]
+  );
+  const totalEpisodes = useMemo(
+    () => seasonsWithEpisodes.reduce((acc: number, s: any) => acc + s.episode_count, 0),
+    [seasonsWithEpisodes]
+  );
+  const watchedCount = useMemo(
+    () =>
+      Array.from(watchedKeys).filter((key) => {
+        const [s] = key.split('-').map(Number);
+        return seasonsWithEpisodes.some((se: any) => se.season_number === s);
+      }).length,
+    [watchedKeys, seasonsWithEpisodes]
+  );
+  const progressPercent = totalEpisodes > 0 ? Math.round((watchedCount / totalEpisodes) * 100) : 0;
+
   const currentSeason = show.seasons.find((s: any) => s.season_number === activeSeason);
   const releaseYear = (show.first_air_date || '').split('-')[0];
 
@@ -85,38 +171,68 @@ const TVPlayerContainer = ({ show }: TVPlayerContainerProps) => {
                   </div>
                   <h3 className="text-xl font-bold text-white">Episodes</h3>
                 </div>
-                <select 
+                <select
                   value={activeSeason}
-                  onChange={(e) => {
-                    setActiveSeason(Number(e.target.value));
-                    setActiveEpisode(1);
-                  }}
+                  onChange={(e) => selectEpisode(Number(e.target.value), 1)}
                   className="bg-card border border-white/10 text-white text-sm rounded-xl px-4 py-2 focus:ring-2 focus:ring-accent outline-none"
                 >
-                  {show.seasons
-                    .filter((s: any) => s.season_number > 0)
-                    .map((s: any) => (
-                      <option key={s.id} value={s.season_number}>
-                        Season {s.season_number}
-                      </option>
-                    ))}
+                  {seasonsWithEpisodes.map((s: any) => (
+                    <option key={s.id} value={s.season_number}>
+                      Season {s.season_number}
+                    </option>
+                  ))}
                 </select>
               </div>
 
+              {/* Overall show progress */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-xs font-medium text-muted">
+                  <span>{watchedCount} of {totalEpisodes} episodes watched</span>
+                  <span className="text-white/70">{progressPercent}%</span>
+                </div>
+                <div className="h-2 rounded-full bg-white/5 overflow-hidden">
+                  <div
+                    className="h-full bg-accent rounded-full transition-all duration-500"
+                    style={{ width: `${progressPercent}%` }}
+                  />
+                </div>
+              </div>
+
               <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-5 gap-3">
-                {Array.from({ length: currentSeason?.episode_count || 0 }, (_, i) => i + 1).map((ep) => (
-                  <button
-                    key={ep}
-                    onClick={() => setActiveEpisode(ep)}
-                    className={`py-3 rounded-xl text-xs font-bold transition-all border ${
-                      activeEpisode === ep 
-                        ? 'bg-accent border-accent text-white shadow-lg shadow-accent/20' 
-                        : 'bg-white/5 border-white/5 text-white/50 hover:bg-white/10 hover:border-white/10'
-                    }`}
-                  >
-                    EP {ep}
-                  </button>
-                ))}
+                {Array.from({ length: currentSeason?.episode_count || 0 }, (_, i) => i + 1).map((ep) => {
+                  const isActive = ep === activeEpisode;
+                  const isWatched = watchedKeys.has(`${activeSeason}-${ep}`);
+                  return (
+                    <button
+                      key={ep}
+                      onClick={() => selectEpisode(activeSeason, ep)}
+                      className={`relative py-3 rounded-xl text-xs font-bold transition-all border ${
+                        isActive
+                          ? 'bg-accent border-accent text-white shadow-lg shadow-accent/20'
+                          : isWatched
+                          ? 'bg-white/[0.03] border-white/5 text-white/30'
+                          : 'bg-white/5 border-white/5 text-white/50 hover:bg-white/10 hover:border-white/10'
+                      }`}
+                    >
+                      EP {ep}
+                      <span
+                        role="button"
+                        aria-label={isWatched ? 'Mark as unwatched' : 'Mark as watched'}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toggleWatched(activeSeason, ep);
+                        }}
+                        className={`absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full flex items-center justify-center border transition-colors ${
+                          isWatched
+                            ? 'bg-accent border-accent text-white'
+                            : 'bg-black/60 border-white/10 text-transparent hover:text-white/40'
+                        }`}
+                      >
+                        <Check size={11} strokeWidth={3} />
+                      </span>
+                    </button>
+                  );
+                })}
               </div>
             </div>
 
