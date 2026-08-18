@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { Loader2, RefreshCw, Server, PlayCircle, Video as VideoIcon, Film, Tv, Play, Globe, Lightbulb, LightbulbOff, Maximize } from 'lucide-react';
+import { Loader2, RefreshCw, Server, PlayCircle, Video as VideoIcon, Film, Tv, Play, Lightbulb, LightbulbOff, Maximize } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from './AuthProvider';
 import { supabase } from '@/lib/supabase';
@@ -101,10 +101,6 @@ const VideoPlayer = ({
   const primaryTrailer = videos.find((v: any) => v.type === 'Trailer' && v.site === 'YouTube') || videos[0];
   const [currentTrailerKey, setCurrentTrailerKey] = useState<string | null>(primaryTrailer?.key || null);
 
-  const [ytResults, setYtResults] = useState<any[]>([]);
-  const [ytLoading, setYtLoading] = useState(false);
-  const [ytError, setYtError] = useState<string | null>(null);
-
   // Record History
   useEffect(() => {
     if (!user || !isVideoMode) return;
@@ -194,32 +190,6 @@ const VideoPlayer = ({
     return () => clearTimeout(timer);
   }, [isLoading, activeProvider, isVideoMode, season, episode]);
 
-  const fetchYoutubeResults = async () => {
-    setYtLoading(true);
-    setYtError(null);
-    const query = `${title} ${type === 'tv' ? `S${season} E${episode}` : ''} full`;
-    
-    try {
-      const response = await fetch(`/api/youtube-search?q=${encodeURIComponent(query)}`);
-      const data = await response.json();
-      
-      if (!response.ok) {
-        if (data.error === 'API Key Missing') {
-          // Open new tab as fallback
-          window.open(`https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`, '_blank');
-          return;
-        }
-        throw new Error(data.error || 'Failed to fetch');
-      }
-      
-      setYtResults(data.results);
-    } catch (err: any) {
-      setYtError(err.message);
-    } finally {
-      setYtLoading(false);
-    }
-  };
-
   const getEmbedUrl = () => {
     if (!isVideoMode && currentTrailerKey) {
       return `https://www.youtube.com/embed/${currentTrailerKey}?autoplay=1`;
@@ -282,11 +252,11 @@ const VideoPlayer = ({
                   }
             }
           >
-            {(isLoading || ytLoading) && (
+            {isLoading && (
               <div className="absolute inset-0 flex flex-col items-center justify-center bg-black z-10">
                 <Loader2 className="animate-spin text-accent mb-4" size={40} />
                 <p className="text-muted text-sm font-medium uppercase tracking-widest">
-                  {ytLoading ? 'Searching YouTube...' : (isVideoMode ? 'Initialising Stream...' : 'Loading Trailer...')}
+                  {isVideoMode ? 'Initialising Stream...' : 'Loading Trailer...'}
                 </p>
               </div>
             )}
@@ -299,10 +269,7 @@ const VideoPlayer = ({
               allowFullScreen
               allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
               referrerPolicy="no-referrer"
-              onLoad={() => {
-                setIsLoading(false);
-                setYtLoading(false);
-              }}
+              onLoad={() => setIsLoading(false)}
               frameBorder="0"
             />
 
@@ -408,94 +375,6 @@ const VideoPlayer = ({
               ))}
             </div>
           )}
-        </div>
-
-        {/* Community / Regional Sources (YouTube, DailyMotion, etc.) */}
-        <div className="p-4 rounded-2xl bg-white/5 border border-white/5 space-y-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-2 text-white/40">
-              <Globe size={14} />
-              <span className="text-[10px] font-bold uppercase tracking-widest">Regional & Alternative Sources</span>
-            </div>
-            {ytError && <span className="text-[8px] text-red-500 bg-red-500/10 px-2 py-1 rounded">Error: {ytError}</span>}
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <button 
-              onClick={fetchYoutubeResults}
-              disabled={ytLoading}
-              className="flex items-center justify-center space-x-2 p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-500 hover:bg-red-500/20 transition-all text-[11px] font-bold disabled:opacity-50"
-            >
-              <VideoIcon size={14} />
-              <span>{ytLoading ? 'Searching...' : 'YouTube API Results'}</span>
-            </button>
-
-            <button 
-              onClick={() => {
-                const query = encodeURIComponent(`${title} ${type === 'tv' ? `S${season} E${episode}` : ''} complet`);
-                window.open(`https://www.dailymotion.com/search/${query}`, '_blank');
-              }}
-              className="flex items-center justify-center space-x-2 p-3 rounded-xl bg-blue-500/10 border border-blue-500/20 text-blue-500 hover:bg-blue-500/20 transition-all text-[11px] font-bold"
-            >
-              <VideoIcon size={14} />
-              <span>Dailymotion</span>
-            </button>
-
-            <button 
-              onClick={() => {
-                const query = encodeURIComponent(`${title} ${type === 'tv' ? `season ${season} episode ${episode}` : ''} arabic stream`);
-                window.open(`https://www.google.com/search?q=${query}`, '_blank');
-              }}
-              className="flex items-center justify-center space-x-2 p-3 rounded-xl bg-orange-500/10 border border-orange-500/20 text-orange-500 hover:bg-orange-500/20 transition-all text-[11px] font-bold"
-            >
-              <Globe size={14} />
-              <span>Arabic Search</span>
-            </button>
-          </div>
-
-          {/* YouTube Results Grid */}
-          <AnimatePresence>
-            {ytResults.length > 0 && (
-              <motion.div 
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: 'auto' }}
-                exit={{ opacity: 0, height: 0 }}
-                className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-4 border-t border-white/5 scroll-mt-4"
-              >
-                {ytResults.map((result) => (
-                  <button
-                    key={result.id}
-                    onClick={() => {
-                      setIsLoading(true);
-                      setCurrentTrailerKey(result.id);
-                      setIsVideoMode(true); // Treat as watch mode
-                      setActiveProvider({ name: 'YT_EMBED', url: 'https://www.youtube.com/embed/', type: 'custom' });
-                    }}
-                    className="flex flex-col text-left group/card"
-                  >
-                    <div className="relative aspect-video rounded-xl overflow-hidden mb-2 border border-white/5 group-hover/card:border-accent transition-colors">
-                      <Image 
-                        src={result.thumbnail} 
-                        alt={result.title} 
-                        fill
-                        sizes="(max-width: 640px) 100vw, 33vw"
-                        className="object-cover group-hover/card:scale-110 transition-transform duration-500" 
-                      />
-                      <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover/card:opacity-100 transition-opacity">
-                        <Play size={24} className="text-white fill-current" />
-                      </div>
-                    </div>
-                    <span className="text-[10px] font-bold text-white line-clamp-2 mb-1 group-hover/card:text-accent transition-colors">{result.title}</span>
-                    <span className="text-[8px] text-white/40 uppercase tracking-widest">{result.channelTitle}</span>
-                  </button>
-                ))}
-              </motion.div>
-            )}
-          </AnimatePresence>
-          
-          <p className="text-[10px] text-white/30 text-center italic">
-            * Use these sources for Tunisian or Arabic series that may not be available on global servers.
-          </p>
         </div>
       </div>
 

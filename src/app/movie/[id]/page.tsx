@@ -1,11 +1,12 @@
 import React from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { getMovieDetails } from '@/lib/tmdb';
+import { getMovieDetails, getCollection } from '@/lib/tmdb';
 import { getImageUrl } from '@/lib/imageUrl';
 import VideoPlayer from '@/components/VideoPlayer';
 import MovieCard from '@/components/MovieCard';
-import { Star, Clock, Calendar, Users, Bookmark, Play } from 'lucide-react';
+import FranchiseRow from '@/components/FranchiseRow';
+import { Star, Clock, Calendar, Users, Bookmark, Play, Layers } from 'lucide-react';
 import WatchlistButton from '@/components/WatchlistButton';
 import AdSpace from '@/components/AdSpace';
 import ReviewSection from '@/components/ReviewSection';
@@ -13,12 +14,27 @@ import ReviewSection from '@/components/ReviewSection';
 export default async function MoviePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const movie = await getMovieDetails(id);
-  
+
   const releaseYear = (movie.release_date || '').split('-')[0];
   const runtime = `${Math.floor(movie.runtime / 60)}h ${movie.runtime % 60}m`;
 
   // Find Director(s)
   const directors = movie.credits.crew.filter((p: any) => p.job === 'Director');
+
+  // This title's own collection (direct sequels/prequels, e.g. a trilogy).
+  const collectionId = movie.belongs_to_collection?.id;
+  const collectionData = collectionId ? await getCollection(collectionId).catch(() => null) : null;
+
+  const collectionItems = (collectionData?.parts || [])
+    .filter((p: any) => p.release_date)
+    .sort((a: any, b: any) => a.release_date.localeCompare(b.release_date))
+    .map((p: any) => ({
+      id: p.id,
+      title: p.title,
+      posterPath: p.poster_path,
+      rating: p.vote_average || 0,
+      year: (p.release_date || '').split('-')[0],
+    }));
 
   return (
     <div className="min-h-screen pb-20">
@@ -48,7 +64,7 @@ export default async function MoviePage({ params }: { params: Promise<{ id: stri
               posterPath={movie.poster_path}
               videos={movie.videos.results}
             />
-            
+
             <div className="space-y-6">
               <div className="space-y-2">
                 <div className="flex flex-wrap items-center justify-between gap-6">
@@ -148,6 +164,15 @@ export default async function MoviePage({ params }: { params: Promise<{ id: stri
                   ))}
                 </div>
               </div>
+
+              {collectionItems.length > 1 && (
+                <FranchiseRow
+                  title={movie.belongs_to_collection?.name || 'Related Movies'}
+                  icon={<Layers size={20} className="text-accent" />}
+                  items={collectionItems}
+                  currentId={movie.id}
+                />
+              )}
 
               {/* Reviews Section */}
               <ReviewSection reviews={movie.reviews.results} />

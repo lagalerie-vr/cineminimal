@@ -137,3 +137,7 @@ export async function getAnimeMix() {
 export async function getPersonDetails(id: string) {
   return fetchFromTMDB(`/person/${id}`, { append_to_response: 'combined_credits' });
 }
+
+export async function getCollection(collectionId: number | string) {
+  return fetchFromTMDB(`/collection/${collectionId}`);
+}
