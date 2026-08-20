@@ -124,6 +124,35 @@ const VideoPlayer = ({
       window.removeEventListener('resize', update);
     };
   }, [mounted]);
+
+  // Theater-mode centering, computed in pixels rather than the usual
+  // `top/left: 50%` + `transform: translate(-50%, -50%)` trick. Chromium has
+  // a long-standing bug where a CSS transform on any ancestor OUTSIDE a
+  // cross-origin iframe silently breaks that iframe's own internal
+  // requestFullscreen() calls — so the provider's native fullscreen button
+  // stopped working while our own (which fullscreens the transformed element
+  // itself) kept working. No transform anywhere in the ancestor chain avoids it.
+  const [theaterBox, setTheaterBox] = useState({ top: 0, left: 0, width: 0, height: 0 });
+  useEffect(() => {
+    if (!lightsOff) return;
+    const update = () => {
+      const vw = window.innerWidth;
+      const vh = window.innerHeight;
+      let width: number;
+      let height: number;
+      if (genZMode) {
+        width = vw * 0.96;
+        height = vh * 0.94;
+      } else {
+        width = Math.min(vw * 0.95, vh * 0.88 * (16 / 9));
+        height = width * (9 / 16);
+      }
+      setTheaterBox({ width, height, left: (vw - width) / 2, top: (vh - height) / 2 });
+    };
+    update();
+    window.addEventListener('resize', update);
+    return () => window.removeEventListener('resize', update);
+  }, [lightsOff, genZMode]);
   const [isVideoMode, setIsVideoMode] = useState(true); // true = movie/tv, false = trailer
   
   // Find primary trailer
@@ -263,28 +292,15 @@ const VideoPlayer = ({
             ref={playerRef}
             className="overflow-hidden bg-black shadow-2xl border border-white/5 group rounded-3xl"
             style={
-              genZMode
+              lightsOff
                 ? {
-                    // Fills almost the whole viewport — a strict 9:16 phone
-                    // shape looked authentic but wasted most of a desktop
-                    // screen either side of it, so both halves get real
-                    // estate instead.
+                    // Pixel values from theaterBox, not the transform-based
+                    // centering trick — see the comment above that effect.
                     position: 'fixed',
-                    top: '50%',
-                    left: '50%',
-                    transform: 'translate(-50%, -50%)',
-                    width: '96vw',
-                    height: '94vh',
-                    zIndex: 9999,
-                  }
-                : lightsOff
-                ? {
-                    position: 'fixed',
-                    top: '50%',
-                    left: '50%',
-                    transform: 'translate(-50%, -50%)',
-                    width: 'min(95vw, calc(88vh * 16 / 9))',
-                    aspectRatio: '16 / 9',
+                    top: theaterBox.top,
+                    left: theaterBox.left,
+                    width: theaterBox.width,
+                    height: theaterBox.height,
                     zIndex: 9999,
                   }
                 : {

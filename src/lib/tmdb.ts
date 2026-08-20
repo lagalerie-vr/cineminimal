@@ -82,14 +82,23 @@ export async function getCountries() {
 
 export async function discoverContent(type: 'movie' | 'tv', filters: Record<string, string>) {
   const now = new Date().toISOString().split('T')[0];
-  
+
+  // The vote_count/popularity floor below is tuned for a worldwide feed —
+  // it exists to keep obscure backlog out of general browsing. But when the
+  // user has deliberately filtered to one country's catalog, that same floor
+  // nearly empties it: e.g. Tunisia has ~580 movies on TMDB, and vote_count>=50
+  // alone drops that to 9, since a smaller market accumulates far fewer TMDB
+  // votes than Hollywood output. A country filter is an explicit opt-in to a
+  // smaller catalog, so it isn't "obscure backlog" the same gate should apply to.
+  const hasCountryFilter = !!filters.with_origin_country;
+
   // Map our UI filters to TMDB params with Catalog Quality Gate defaults
   const tmdbParams: Record<string, string> = {
     sort_by: filters.sort_by || 'popularity.desc',
     include_adult: 'false',
     page: '1',
-    'vote_count.gte': '50',      // Filter out obscure backlog
-    'popularity.gte': '3',       // Filter out low-interest items
+    'vote_count.gte': hasCountryFilter ? '1' : '50',      // Filter out obscure backlog
+    'popularity.gte': hasCountryFilter ? '0' : '3',       // Filter out low-interest items
     ...filters
   };
 
