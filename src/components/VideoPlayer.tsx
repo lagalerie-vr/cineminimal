@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { Loader2, RefreshCw, Server, PlayCircle, Video as VideoIcon, Film, Tv, Play, Lightbulb, LightbulbOff, Maximize, Rows2 } from 'lucide-react';
+import { Loader2, RefreshCw, Server, PlayCircle, Video as VideoIcon, Film, Tv, Play, Lightbulb, LightbulbOff, Rows2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from './AuthProvider';
 import { supabase } from '@/lib/supabase';
@@ -369,18 +369,6 @@ const VideoPlayer = ({
                 title={genZMode ? 'Exit Gen Z Mode' : 'Gen Z Mode'}
               >
                 <Rows2 size={18} />
-              </button>
-              <button
-                onClick={() => {
-                  const el = playerRef.current;
-                  if (!el) return;
-                  if (document.fullscreenElement) document.exitFullscreen();
-                  else el.requestFullscreen();
-                }}
-                className="p-2 bg-black/60 backdrop-blur-md rounded-full text-white/70 hover:text-white transition-colors border border-white/10"
-                title="Fullscreen"
-              >
-                <Maximize size={18} />
               </button>
               <button
                 onClick={() => {

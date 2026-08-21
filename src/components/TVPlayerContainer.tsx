@@ -46,6 +46,21 @@ const TVPlayerContainer = ({ show }: TVPlayerContainerProps) => {
   const [watchedKeys, setWatchedKeys] = useState<Set<string>>(new Set());
   const [positions, setPositions] = useState<Record<string, EpisodePosition>>({});
 
+  // Episode names/synopses aren't in the show payload — TMDB only includes
+  // episode_count per season there — so the active season's episode list is
+  // fetched separately whenever the season changes.
+  const [seasonEpisodes, setSeasonEpisodes] = useState<any[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    fetch(`/api/tv-season?id=${show.id}&season=${activeSeason}`)
+      .then((res) => res.json())
+      .then((data) => { if (!cancelled) setSeasonEpisodes(data.episodes || []); })
+      .catch(() => { if (!cancelled) setSeasonEpisodes([]); });
+    return () => { cancelled = true; };
+  }, [show.id, activeSeason]);
+
+  const currentEpisodeData = seasonEpisodes.find((e: any) => e.episode_number === activeEpisode);
+
   const updateUrl = (season: number, episode: number) => {
     const url = `${pathname}?season=${season}&episode=${episode}`;
     window.history.replaceState(null, '', url);
@@ -143,6 +158,23 @@ const TVPlayerContainer = ({ show }: TVPlayerContainerProps) => {
                   />
                 </div>
               </div>
+
+              {currentEpisodeData && (
+                <div className="space-y-2 pt-1">
+                  <p className="text-xs font-bold text-accent uppercase tracking-widest">
+                    Season {activeSeason} · Episode {activeEpisode}
+                  </p>
+                  {currentEpisodeData.name && (
+                    <h2 className="text-xl font-bold text-white">{currentEpisodeData.name}</h2>
+                  )}
+                  {currentEpisodeData.overview && (
+                    <p className="text-sm text-white/60 leading-relaxed max-w-2xl">
+                      {currentEpisodeData.overview}
+                    </p>
+                  )}
+                </div>
+              )}
+
               <div className="flex flex-wrap gap-4 text-sm font-medium text-muted">
                 <div className="flex items-center space-x-1">
                   <Star className="text-yellow-500 fill-yellow-500" size={16} />
