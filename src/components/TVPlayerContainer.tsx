@@ -3,6 +3,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useSearchParams, usePathname } from 'next/navigation';
 import VideoPlayer from './VideoPlayer';
 import MovieCard from './MovieCard';
@@ -60,6 +61,35 @@ const TVPlayerContainer = ({ show }: TVPlayerContainerProps) => {
   }, [show.id, activeSeason]);
 
   const currentEpisodeData = seasonEpisodes.find((e: any) => e.episode_number === activeEpisode);
+
+  // Hover preview: details come straight from seasonEpisodes (already
+  // fetched). A short preview clip is a separate, per-episode lookup — most
+  // episodes have none, since TMDB only carries official promo clips/teasers
+  // here, never the episode itself, so it's fetched lazily and only after
+  // the hover holds for a moment (skips firing on quick mouse passes).
+  const [hoveredEpisode, setHoveredEpisode] = useState<number | null>(null);
+  const [hoverClipUrl, setHoverClipUrl] = useState<string | null>(null);
+  const hoveredEpisodeData = seasonEpisodes.find((e: any) => e.episode_number === hoveredEpisode);
+
+  useEffect(() => {
+    if (hoveredEpisode == null) {
+      setHoverClipUrl(null);
+      return;
+    }
+    setHoverClipUrl(null);
+    const timer = setTimeout(() => {
+      fetch(`/api/tv-episode-videos?id=${show.id}&season=${activeSeason}&episode=${hoveredEpisode}`)
+        .then((res) => res.json())
+        .then((data) => {
+          const clip = (data.results || []).find(
+            (v: any) => v.site === 'YouTube' && (v.type === 'Clip' || v.type === 'Teaser' || v.type === 'Trailer')
+          );
+          if (clip) setHoverClipUrl(`https://www.youtube.com/embed/${clip.key}?autoplay=1&mute=1&controls=0&modestbranding=1&rel=0`);
+        })
+        .catch(() => {});
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [hoveredEpisode, show.id, activeSeason]);
 
   const updateUrl = (season: number, episode: number) => {
     const url = `${pathname}?season=${season}&episode=${episode}`;
@@ -246,43 +276,99 @@ const TVPlayerContainer = ({ show }: TVPlayerContainerProps) => {
                     position && position.duration > 0 && !isWatched
                       ? Math.min(100, Math.round((position.watched / position.duration) * 100))
                       : 0;
+                  const isHovered = hoveredEpisode === ep;
                   return (
-                    <button
-                      key={ep}
-                      onClick={() => selectEpisode(activeSeason, ep)}
-                      className={`relative py-3 rounded-xl text-xs font-bold transition-all border ${
-                        isActive
-                          ? 'bg-accent border-accent text-white shadow-lg shadow-accent/20'
-                          : isWatched
-                          ? 'bg-white/[0.03] border-white/5 text-white/30'
-                          : 'bg-white/5 border-white/5 text-white/50 hover:bg-white/10 hover:border-white/10'
-                      }`}
-                    >
-                      EP {ep}
-                      <span
-                        role="button"
-                        aria-label={isWatched ? 'Mark as unwatched' : 'Mark as watched'}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          toggleWatched(activeSeason, ep);
-                        }}
-                        className={`absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full flex items-center justify-center border transition-colors ${
-                          isWatched
-                            ? 'bg-accent border-accent text-white'
-                            : 'bg-black/60 border-white/10 text-transparent hover:text-white/40'
+                    // The hover card is `absolute`, so it never affects this
+                    // wrapper's size or the grid's layout — it floats over
+                    // whatever's underneath instead of pushing it down.
+                    <div key={ep} className="relative">
+                      <button
+                        onClick={() => selectEpisode(activeSeason, ep)}
+                        onMouseEnter={() => setHoveredEpisode(ep)}
+                        onMouseLeave={() => setHoveredEpisode((prev) => (prev === ep ? null : prev))}
+                        className={`relative w-full py-3 rounded-xl text-xs font-bold transition-all border ${
+                          isActive
+                            ? 'bg-accent border-accent text-white shadow-lg shadow-accent/20'
+                            : isWatched
+                            ? 'bg-white/[0.03] border-white/5 text-white/30'
+                            : 'bg-white/5 border-white/5 text-white/50 hover:bg-white/10 hover:border-white/10'
                         }`}
                       >
-                        <Check size={11} strokeWidth={3} />
-                      </span>
-                      {partial > 0 && (
-                        <span className="absolute bottom-0 left-0 right-0 h-1 rounded-b-xl bg-white/10 overflow-hidden">
-                          <span
-                            className="block h-full bg-accent/80"
-                            style={{ width: `${partial}%` }}
-                          />
+                        EP {ep}
+                        <span
+                          role="button"
+                          aria-label={isWatched ? 'Mark as unwatched' : 'Mark as watched'}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            toggleWatched(activeSeason, ep);
+                          }}
+                          className={`absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full flex items-center justify-center border transition-colors ${
+                            isWatched
+                              ? 'bg-accent border-accent text-white'
+                              : 'bg-black/60 border-white/10 text-transparent hover:text-white/40'
+                          }`}
+                        >
+                          <Check size={11} strokeWidth={3} />
                         </span>
-                      )}
-                    </button>
+                        {partial > 0 && (
+                          <span className="absolute bottom-0 left-0 right-0 h-1 rounded-b-xl bg-white/10 overflow-hidden">
+                            <span
+                              className="block h-full bg-accent/80"
+                              style={{ width: `${partial}%` }}
+                            />
+                          </span>
+                        )}
+                      </button>
+
+                      {/* Hover card: still image (or an official clip/teaser,
+                          when TMDB has one for this episode) plus its details. */}
+                      <AnimatePresence>
+                        {isHovered && hoveredEpisodeData && (
+                          <motion.div
+                            initial={{ opacity: 0, y: -4, scale: 0.97 }}
+                            animate={{ opacity: 1, y: 0, scale: 1 }}
+                            exit={{ opacity: 0, y: -4, scale: 0.97 }}
+                            transition={{ duration: 0.15 }}
+                            className="absolute z-40 top-full mt-2 left-1/2 -translate-x-1/2 w-64 max-w-[85vw] pointer-events-none"
+                          >
+                            <div className="p-3 rounded-2xl bg-card border border-white/10 shadow-2xl space-y-2">
+                              <div className="relative w-full aspect-video rounded-xl overflow-hidden bg-black">
+                                {hoverClipUrl ? (
+                                  <iframe
+                                    key={hoverClipUrl}
+                                    src={hoverClipUrl}
+                                    className="w-full h-full"
+                                    allow="autoplay; encrypted-media"
+                                    frameBorder="0"
+                                  />
+                                ) : hoveredEpisodeData.still_path ? (
+                                  <Image
+                                    src={getImageUrl(hoveredEpisodeData.still_path, 'w300')}
+                                    alt={hoveredEpisodeData.name}
+                                    fill
+                                    sizes="256px"
+                                    className="object-cover"
+                                  />
+                                ) : (
+                                  <div className="w-full h-full flex items-center justify-center text-white/20">
+                                    <List size={24} />
+                                  </div>
+                                )}
+                              </div>
+                              <p className="text-[10px] font-bold text-accent uppercase tracking-widest">
+                                Episode {hoveredEpisodeData.episode_number}
+                                {hoveredEpisodeData.air_date ? ` · ${hoveredEpisodeData.air_date}` : ''}
+                                {hoveredEpisodeData.runtime ? ` · ${hoveredEpisodeData.runtime}m` : ''}
+                              </p>
+                              <h4 className="text-sm font-bold text-white line-clamp-1">{hoveredEpisodeData.name}</h4>
+                              <p className="text-xs text-white/60 leading-relaxed line-clamp-3">
+                                {hoveredEpisodeData.overview || 'No description available.'}
+                              </p>
+                            </div>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </div>
                   );
                 })}
               </div>

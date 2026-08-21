@@ -47,6 +47,12 @@ export async function getTVSeasonDetails(id: string, seasonNumber: number) {
   return fetchFromTMDB(`/tv/${id}/season/${seasonNumber}`);
 }
 
+// Official clips/teasers TMDB has attached to one specific episode, if any —
+// coverage is sparse (most episodes have none), never the episode itself.
+export async function getEpisodeVideos(id: string, seasonNumber: number, episodeNumber: number) {
+  return fetchFromTMDB(`/tv/${id}/season/${seasonNumber}/episode/${episodeNumber}/videos`);
+}
+
 export async function searchTMDB(query: string) {
   const data = await fetchFromTMDB('/search/multi', { query });
   // Filter search results to remove low-quality "backlog" items
