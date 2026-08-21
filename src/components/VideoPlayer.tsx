@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { Loader2, RefreshCw, Server, PlayCircle, Video as VideoIcon, Film, Tv, Play, Lightbulb, LightbulbOff, Rows2 } from 'lucide-react';
+import { Loader2, RefreshCw, Server, PlayCircle, Video as VideoIcon, Film, Tv, Play, Lightbulb, LightbulbOff, Rows2, Maximize } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from './AuthProvider';
 import { supabase } from '@/lib/supabase';
@@ -21,9 +21,21 @@ interface VideoPlayerProps {
 }
 
 const PROVIDERS = [
+  // Default. Verified live: resolves the correct title for both movies and
+  // TV episodes and plays inline (unlike some alternatives that are actually
+  // landing pages linking out to a separate player).
+  { name: 'vidlink', url: 'https://vidlink.pro', type: 'tmdb' },
+  // videasy is currently returning 502s from its own upstream (outage on
+  // their end, unrelated to this app) — bumped from default so new visitors
+  // don't land on a dead player. Left in the list since it's still the only
+  // provider with real progress tracking and reliably English audio; move it
+  // back to the front once it's confirmed stable again.
   { name: 'videasy', url: 'https://player.videasy.net', type: 'tmdb' },
+  // vidsrc.sbs's pre-play screen resolves the correct title, but its default
+  // "Pro Multi" backend is an unreliable multi-language aggregator that can
+  // fall back to unrelated (often Bollywood) content once you hit play —
+  // kept as a fallback, not the default, until that's addressed upstream.
   { name: 'vidsrc.sbs', url: 'https://vidsrc.sbs/embed', type: 'tmdb' },
-  { name: 'vidsrc.to', url: 'https://vidsrc.to/embed', type: 'tmdb' },
   { name: 'vidsrc.me', url: 'https://vidsrc.me/embed', type: 'tmdb' },
 ];
 
@@ -369,6 +381,22 @@ const VideoPlayer = ({
                 title={genZMode ? 'Exit Gen Z Mode' : 'Gen Z Mode'}
               >
                 <Rows2 size={18} />
+              </button>
+              <button
+                onClick={() => {
+                  const el = playerRef.current;
+                  if (!el) return;
+                  // The provider's own in-frame fullscreen button is
+                  // unreliable — it's third-party, cross-origin UI we don't
+                  // control, and varies (or breaks) per provider. This
+                  // fullscreens our own wrapper instead, which always works.
+                  if (document.fullscreenElement) document.exitFullscreen();
+                  else el.requestFullscreen();
+                }}
+                className="p-2 bg-black/60 backdrop-blur-md rounded-full text-white/70 hover:text-white transition-colors border border-white/10"
+                title="Fullscreen"
+              >
+                <Maximize size={18} />
               </button>
               <button
                 onClick={() => {
