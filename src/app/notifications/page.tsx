@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/components/AuthProvider';
 import FriendAvatar from '@/components/FriendAvatar';
+import UserLink from '@/components/UserLink';
 import {
   getNotifications,
   markRead,
@@ -15,15 +16,10 @@ import {
   type AppNotification,
 } from '@/lib/notifications';
 import { timeAgo } from '@/lib/posts';
-import {
-  Bell,
-  Loader2,
-  ArrowLeft,
-  AlertCircle,
-  CheckCheck,
-  Trash2,
-  X,
-} from 'lucide-react';
+import { Bell, Loader2, AlertCircle, CheckCheck, Trash2, X } from 'lucide-react';
+import PageShell from '@/components/ui/PageShell';
+import EmptyState from '@/components/ui/EmptyState';
+import { PageSpinner, SignInPrompt } from '@/components/ui/AuthGate';
 
 /** Full notification history — the dropdown only shows the most recent few. */
 export default function NotificationsPage() {
@@ -87,56 +83,25 @@ export default function NotificationsPage() {
     }
   };
 
-  if (authLoading || loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="animate-spin text-accent" size={40} />
-      </div>
-    );
-  }
+  if (authLoading || loading) return <PageSpinner />;
 
   if (!user) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center space-y-6 px-6">
-        <Bell size={64} className="text-white/10" />
-        <div className="text-center space-y-2">
-          <h1 className="text-2xl font-bold">Notifications</h1>
-          <p className="text-muted max-w-sm">Sign in to see your activity.</p>
-        </div>
-        <Link
-          href="/login?redirect=/notifications"
-          className="bg-accent text-white px-8 py-3 rounded-2xl font-bold shadow-xl shadow-accent/20 hover:scale-105 transition-all"
-        >
-          Sign In Now
-        </Link>
-      </div>
+      <SignInPrompt
+        icon={Bell}
+        title="Notifications"
+        body="Sign in to see your activity."
+        redirectTo="/notifications"
+      />
     );
   }
 
   return (
-    <div className="pt-32 pb-20 min-h-screen">
-      <div className="container mx-auto px-6 max-w-2xl space-y-8">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-4">
-            <div className="w-12 h-12 bg-accent/20 border border-accent/20 rounded-2xl flex items-center justify-center text-accent">
-              <Bell size={24} />
-            </div>
-            <div>
-              <h1 className="text-3xl font-bold text-white tracking-tight">Notifications</h1>
-              <p className="text-muted text-sm">
-                {items.length} total{unread > 0 && ` · ${unread} unread`}
-              </p>
-            </div>
-          </div>
-          <Link
-            href="/"
-            className="hidden md:flex items-center space-x-2 text-muted hover:text-white transition-colors text-sm font-medium"
-          >
-            <ArrowLeft size={16} />
-            <span>Back to Home</span>
-          </Link>
-        </div>
-
+    <PageShell
+      icon={Bell}
+      title="Notifications"
+      subtitle={`${items.length} total${unread > 0 ? ` · ${unread} unread` : ''}`}
+    >
         {error && (
           <div className="bg-red-500/10 border border-red-500/20 rounded-2xl p-4 flex items-start space-x-3 text-red-400 text-sm">
             <AlertCircle size={18} className="shrink-0 mt-0.5" />
@@ -167,17 +132,11 @@ export default function NotificationsPage() {
         )}
 
         {items.length === 0 ? (
-          <div className="py-24 text-center space-y-6">
-            <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-white/5 border border-white/10 text-white/20">
-              <Bell size={32} />
-            </div>
-            <div className="space-y-2">
-              <h3 className="text-xl font-bold">Nothing here</h3>
-              <p className="text-muted max-w-xs mx-auto text-sm">
-                Reactions, comments and friend activity will show up here.
-              </p>
-            </div>
-          </div>
+          <EmptyState
+            icon={Bell}
+            title="Nothing here"
+            body="Reactions, comments and friend activity will show up here."
+          />
         ) : (
           <div className="space-y-2">
             {items.map((n) => (
@@ -195,7 +154,9 @@ export default function NotificationsPage() {
                   className="flex items-center gap-3 min-w-0 flex-1"
                 >
                   {n.actor ? (
-                    <FriendAvatar profile={n.actor} size={40} />
+                    <UserLink username={n.actor.username} nested>
+                      <FriendAvatar profile={n.actor} size={40} />
+                    </UserLink>
                   ) : (
                     <div className="w-10 h-10 rounded-full bg-white/5 shrink-0" />
                   )}
@@ -218,7 +179,6 @@ export default function NotificationsPage() {
             ))}
           </div>
         )}
-      </div>
-    </div>
+    </PageShell>
   );
 }

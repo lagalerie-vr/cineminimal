@@ -21,7 +21,7 @@ interface PostFeedProps {
   /** Pass a channel id for a channel feed. Takes precedence over userId. */
   channelId?: string;
   /** Pass a title for the per-title discussion. Takes precedence over both. */
-  media?: { type: 'movie' | 'tv'; id: string | number } | null;
+  media?: { type: 'movie' | 'tv'; id: string | number; season?: number | null; episode?: number | null } | null;
   /** Bump to force a reload — used after the composer publishes. */
   refreshKey?: number;
   emptyTitle?: string;
@@ -49,15 +49,21 @@ const PostFeed = ({
   // a new reference every render and re-fetch the feed in a loop.
   const mediaType = media?.type ?? null;
   const mediaId = media?.id == null ? null : String(media.id);
+  const mediaSeason = media?.season ?? null;
+  const mediaEpisode = media?.episode ?? null;
 
   const fetchPage = useCallback(
     (cursor?: PostCursor | null) => {
-      if (mediaType && mediaId) return getTitlePosts(mediaType, mediaId, cursor);
+      if (mediaType && mediaId)
+        return getTitlePosts(mediaType, mediaId, cursor, {
+          season: mediaSeason,
+          episode: mediaEpisode,
+        });
       if (channelId) return getChannelPosts(channelId, cursor);
       if (userId) return getUserPosts(userId, cursor);
       return getFeed(cursor);
     },
-    [userId, channelId, mediaType, mediaId]
+    [userId, channelId, mediaType, mediaId, mediaSeason, mediaEpisode]
   );
 
   // Initial load, and whenever the feed is asked to refresh.

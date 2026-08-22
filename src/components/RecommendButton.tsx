@@ -3,10 +3,11 @@
 import React, { useEffect, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import FriendAvatar from './FriendAvatar';
+import ModalPortal from './ModalPortal';
 import { useAuth } from './AuthProvider';
 import { getFriends, type Friend } from '@/lib/friends';
 import { recommendToFriend } from '@/lib/sharedWatchlist';
-import { Send, Loader2, Check, X, AlertCircle, Users } from 'lucide-react';
+import { Send, Loader2, Check, X, AlertCircle, Users, Search } from 'lucide-react';
 
 interface RecommendButtonProps {
   mediaType: 'movie' | 'tv';
@@ -24,6 +25,7 @@ const RecommendButton = ({ mediaType, mediaId, title, posterPath }: RecommendBut
   const [sentTo, setSentTo] = useState<Set<string>>(new Set());
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [query, setQuery] = useState('');
 
   useEffect(() => {
     if (!open || friends.length > 0) return;
@@ -33,6 +35,16 @@ const RecommendButton = ({ mediaType, mediaId, title, posterPath }: RecommendBut
       .catch(() => setFriends([]))
       .finally(() => setLoading(false));
   }, [open, friends.length]);
+
+  // Filtered client-side; the friend list is already loaded in full.
+  const visible = friends.filter((f) => {
+    const q = query.trim().toLowerCase();
+    if (!q) return true;
+    return (
+      f.profile.username.toLowerCase().includes(q) ||
+      (f.profile.display_name ?? '').toLowerCase().includes(q)
+    );
+  });
 
   if (!user) return null;
 
@@ -65,6 +77,7 @@ const RecommendButton = ({ mediaType, mediaId, title, posterPath }: RecommendBut
         <span>Recommend</span>
       </button>
 
+      <ModalPortal>
       <AnimatePresence>
         {open && (
           <motion.div
@@ -101,6 +114,20 @@ const RecommendButton = ({ mediaType, mediaId, title, posterPath }: RecommendBut
                 </p>
               )}
 
+              {friends.length > 5 && (
+                <div className="px-5 pt-4">
+                  <div className="relative">
+                    <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-white/40" size={15} />
+                    <input
+                      value={query}
+                      onChange={(e) => setQuery(e.target.value)}
+                      placeholder="Search friends…"
+                      className="w-full bg-white/5 border border-white/10 rounded-xl py-2.5 pl-10 pr-3 text-white text-sm placeholder:text-white/30 focus:border-accent transition-all outline-none"
+                    />
+                  </div>
+                </div>
+              )}
+
               <div className="max-h-80 overflow-y-auto">
                 {loading ? (
                   <div className="flex justify-center py-10">
@@ -111,8 +138,12 @@ const RecommendButton = ({ mediaType, mediaId, title, posterPath }: RecommendBut
                     <Users size={28} className="text-white/10 mx-auto" />
                     <p className="text-muted text-sm">Add friends first, then recommend.</p>
                   </div>
+                ) : visible.length === 0 ? (
+                  <p className="text-muted text-sm text-center py-10">
+                    No friends match &ldquo;{query.trim()}&rdquo;.
+                  </p>
                 ) : (
-                  friends.map((f) => {
+                  visible.map((f) => {
                     const sent = sentTo.has(f.profile.id);
                     return (
                       <div
@@ -157,6 +188,7 @@ const RecommendButton = ({ mediaType, mediaId, title, posterPath }: RecommendBut
           </motion.div>
         )}
       </AnimatePresence>
+      </ModalPortal>
     </>
   );
 };

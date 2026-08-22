@@ -3,10 +3,11 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { Search, Film, Tv, Home, User, LogOut, Bookmark, History, Menu, X, Sparkles, Users, ShieldCheck } from 'lucide-react';
+import { Search, Film, Tv, Home, User, LogOut, Bookmark, History, Menu, X, Sparkles, Users, ShieldCheck, MessageCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from './AuthProvider';
 import NotificationBell from './NotificationBell';
+import { getUnreadTotal, subscribeToMessages } from '@/lib/dm';
 import { getIncomingRequestCount } from '@/lib/friends';
 
 const Navbar = () => {
@@ -19,6 +20,7 @@ const Navbar = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearchExpanded, setIsSearchExpanded] = useState(false);
   const [pendingRequests, setPendingRequests] = useState(0);
+  const [unreadDms, setUnreadDms] = useState(0);
 
   // Refetched on mount and whenever the tab regains focus — a badge count
   // doesn't justify a realtime subscription, and coming back to the tab is
@@ -45,6 +47,32 @@ const Navbar = () => {
     };
   }, [user]);
 
+  // Unread DMs. Unlike friend requests these arrive mid-session and are
+  // worth showing immediately, so this one listens as well as refetching.
+  useEffect(() => {
+    if (!user) {
+      setUnreadDms(0);
+      return;
+    }
+    let cancelled = false;
+    const refresh = async () => {
+      try {
+        const n = await getUnreadTotal();
+        if (!cancelled) setUnreadDms(n);
+      } catch {
+        // Non-critical; keep the previous count.
+      }
+    };
+    refresh();
+    const unsubscribe = subscribeToMessages(() => refresh());
+    window.addEventListener('focus', refresh);
+    return () => {
+      cancelled = true;
+      unsubscribe();
+      window.removeEventListener('focus', refresh);
+    };
+  }, [user]);
+
   useEffect(() => {
     const handleScroll = () => {
       setIsScrolled(window.scrollY > 20);
@@ -67,9 +95,10 @@ const Navbar = () => {
     { name: 'Movies', href: '/movies', icon: Film, badge: 0 },
     { name: 'TV Shows', href: '/tv', icon: Tv, badge: 0 },
     { name: 'Anime', href: '/anime', icon: Sparkles, badge: 0 },
-    // Signed-in only: the page works signed out, but a nav entry that
-    // leads straight to a sign-in wall isn't worth the space.
-    ...(user ? [{ name: 'Friends', href: '/friends', icon: Users, badge: pendingRequests }] : []),
+    // Always shown, signed in or not: hiding it made the social side of
+    // the app invisible to anyone logged out. The page itself renders a
+    // sign-in prompt rather than an error.
+    { name: 'Friends', href: '/friends', icon: Users, badge: user ? pendingRequests : 0 },
   ];
 
   return (
@@ -198,6 +227,19 @@ const Navbar = () => {
                           {pendingRequests > 0 && (
                             <span className="min-w-[18px] h-[18px] px-1 rounded-full bg-accent text-white text-[10px] font-bold flex items-center justify-center">
                               {pendingRequests > 9 ? '9+' : pendingRequests}
+                            </span>
+                          )}
+                        </Link>
+                        <Link
+                          href="/messages"
+                          onClick={() => setIsProfileOpen(false)}
+                          className="flex items-center space-x-3 px-3 py-2 rounded-xl text-sm hover:bg-white/5 transition-colors text-white/70 hover:text-white"
+                        >
+                          <MessageCircle size={16} />
+                          <span className="flex-1">Messages</span>
+                          {unreadDms > 0 && (
+                            <span className="min-w-[18px] h-[18px] px-1 rounded-full bg-accent text-white text-[10px] font-bold flex items-center justify-center">
+                              {unreadDms > 9 ? '9+' : unreadDms}
                             </span>
                           )}
                         </Link>

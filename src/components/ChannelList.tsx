@@ -11,7 +11,7 @@ import {
 } from '@/lib/channels';
 import { deleteChannel } from '@/lib/moderation';
 import { useAuth } from './AuthProvider';
-import { Loader2, Plus, Hash, Users, MessageSquare, AlertCircle, X, Trash2 } from 'lucide-react';
+import { Loader2, Plus, Hash, Users, MessageSquare, AlertCircle, X, Trash2, Flame } from 'lucide-react';
 
 /** Browse, create and join channels. */
 const ChannelList = () => {
@@ -112,7 +112,7 @@ const ChannelList = () => {
   }
 
   return (
-    <div className="space-y-6 max-w-2xl">
+    <div className="space-y-6">
       <div className="flex items-center justify-between gap-4">
         <div>
           <h2 className="text-xl font-bold text-white">Channels</h2>
@@ -137,7 +137,7 @@ const ChannelList = () => {
       )}
 
       {creating && (
-        <div className="p-6 rounded-3xl bg-white/[0.02] border border-white/5 space-y-4">
+        <div className="p-6 rounded-3xl bg-white/[0.02] border border-white/5 space-y-4 max-w-2xl">
           <div className="space-y-2">
             <label className="text-xs font-bold text-white/40 uppercase tracking-[0.2em] ml-1 block">
               Handle
@@ -205,7 +205,7 @@ const ChannelList = () => {
           </div>
         </div>
       ) : (
-        <div className="space-y-2">
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
           {channels.map((c) => (
             <div
               key={c.id}
@@ -216,8 +216,19 @@ const ChannelList = () => {
                   <Hash size={18} />
                 </div>
                 <div className="min-w-0">
-                  <p className="text-sm font-bold text-white truncate group-hover/ch:text-accent transition-colors">
-                    {c.name}
+                  <p className="flex items-center gap-1.5 text-sm font-bold text-white truncate group-hover/ch:text-accent transition-colors">
+                    <span className="truncate">{c.name}</span>
+                    {/* Sorted server-side by last-7-days activity, so this
+                        marks what's actually alive right now. */}
+                    {c.recent_post_count > 0 && (
+                      <span
+                        className="flex items-center gap-0.5 text-[9px] font-bold text-accent shrink-0"
+                        title={`${c.recent_post_count} post${c.recent_post_count === 1 ? '' : 's'} this week`}
+                      >
+                        <Flame size={9} />
+                        {c.recent_post_count}
+                      </span>
+                    )}
                   </p>
                   <p className="flex items-center gap-2 text-[11px] text-muted">
                     <span className="truncate">c/{c.slug}</span>

@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import FriendAvatar from './FriendAvatar';
+import UserLink from './UserLink';
 import { getImageUrl } from '@/lib/imageUrl';
 import {
   getFriendsWatching,
@@ -12,13 +13,8 @@ import {
   STALE_AFTER_MS,
   type WatchingFriend,
 } from '@/lib/presence';
-import { Loader2, Tv as TvIcon, Film } from 'lucide-react';
-
-interface WatchingNowProps {
-  /** Rendered inline (friends tab) vs. as the floating dock. */
-  variant?: 'panel' | 'dock';
-  onCountChange?: (n: number) => void;
-}
+import { Loader2, Tv as TvIcon, Film, EyeOff } from 'lucide-react';
+import IncognitoToggle from './IncognitoToggle';
 
 export function useFriendsWatching() {
   const [watching, setWatching] = useState<WatchingFriend[]>([]);
@@ -55,60 +51,87 @@ export function useFriendsWatching() {
 }
 
 function watchHref(w: WatchingFriend) {
+  if (!w.media_id || !w.media_type) return null;
   return w.media_type === 'tv'
     ? `/tv/${w.media_id}${w.season ? `?season=${w.season}&episode=${w.episode ?? 1}` : ''}`
     : `/movie/${w.media_id}`;
 }
 
 function Row({ w }: { w: WatchingFriend }) {
-  return (
-    <Link
-      href={watchHref(w)}
-      className="flex items-center gap-3 p-2 rounded-xl hover:bg-white/5 transition-colors group/row"
-    >
-      <div className="relative shrink-0">
+  const href = watchHref(w);
+
+  const body = (
+    <>
+      <UserLink username={w.username} nested className="relative shrink-0 block">
         <FriendAvatar profile={w} size={36} />
         {/* Pulsing dot: this is live data, and it should look like it. */}
         <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-accent ring-2 ring-card">
           <span className="absolute inset-0 rounded-full bg-accent animate-ping opacity-75" />
         </span>
-      </div>
+      </UserLink>
 
       <div className="min-w-0 flex-1">
-        <p className="text-xs font-bold text-white truncate">
-          {w.display_name || w.username}
-        </p>
+        <UserLink username={w.username} nested>
+          <p className="text-xs font-bold text-white truncate hover:text-accent transition-colors">
+            {w.display_name || w.username}
+          </p>
+        </UserLink>
         <p className="flex items-center gap-1 text-[10px] text-muted truncate">
-          {w.media_type === 'tv' ? <TvIcon size={9} /> : <Film size={9} />}
-          <span className="truncate group-hover/row:text-accent transition-colors">{w.title}</span>
-          {w.season != null && w.episode != null && (
+          {w.is_incognito ? (
+            <EyeOff size={9} />
+          ) : w.media_type === 'tv' ? (
+            <TvIcon size={9} />
+          ) : (
+            <Film size={9} />
+          )}
+          <span
+            className={`truncate ${
+              w.is_incognito ? 'italic' : 'group-hover/row:text-accent transition-colors'
+            }`}
+          >
+            {w.title}
+          </span>
+          {!w.is_incognito && w.season != null && w.episode != null && (
             <span className="shrink-0">· S{w.season}E{w.episode}</span>
           )}
         </p>
       </div>
 
-      <div className="relative w-8 h-11 rounded-md overflow-hidden bg-card shrink-0">
-        <Image
-          src={getImageUrl(w.poster_path, 'w185')}
-          alt={w.title}
-          fill
-          sizes="32px"
-          className="object-cover"
-        />
+      {/* No poster when incognito — the server never sent one. */}
+      <div className="relative w-8 h-11 rounded-md overflow-hidden bg-card shrink-0 flex items-center justify-center">
+        {w.is_incognito ? (
+          <EyeOff size={13} className="text-white/20" />
+        ) : (
+          <Image
+            src={getImageUrl(w.poster_path, 'w185')}
+            alt={w.title}
+            fill
+            sizes="32px"
+            className="object-cover"
+          />
+        )}
       </div>
+    </>
+  );
+
+  // Incognito rows have no media to navigate to, so they aren't links.
+  if (!href) {
+    return <div className="flex items-center gap-3 p-2 rounded-xl">{body}</div>;
+  }
+
+  return (
+    <Link
+      href={href}
+      className="flex items-center gap-3 p-2 rounded-xl hover:bg-white/5 transition-colors group/row"
+    >
+      {body}
     </Link>
   );
 }
 
 /** Inline list for the friends tab. */
-const WatchingNow = ({ variant = 'panel', onCountChange }: WatchingNowProps) => {
+const WatchingNow = () => {
   const { watching, loading } = useFriendsWatching();
-
-  useEffect(() => {
-    onCountChange?.(watching.length);
-  }, [watching.length, onCountChange]);
-
-  if (variant === 'dock') return null;
 
   return (
     <div className="p-4 rounded-3xl bg-white/[0.02] border border-white/5 space-y-3">
@@ -120,6 +143,8 @@ const WatchingNow = ({ variant = 'panel', onCountChange }: WatchingNowProps) => 
           </span>
         )}
       </div>
+
+      <IncognitoToggle />
 
       {loading ? (
         <div className="flex justify-center py-6">

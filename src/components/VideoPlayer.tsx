@@ -19,18 +19,47 @@ interface VideoPlayerProps {
   posterPath?: string;
   videos?: any[];
   onProgress?: (position: { watched: number; duration: number }) => void;
+  /**
+   * Start on a specific provider by name. Watch rooms use this to prefer
+   * videasy, the only provider that reports playback progress.
+   */
+  preferredProvider?: string;
 }
 
-const PROVIDERS = [
-  // Default. Verified live: resolves the correct title for both movies and
-  // TV episodes and plays inline (unlike some alternatives that are actually
-  // landing pages linking out to a separate player).
-  // videasy is currently returning 502s from its own upstream (outage on
-  // their end, unrelated to this app) — bumped from default so new visitors
-  // don't land on a dead player. Left in the list since it's still the only
-  // provider with real progress tracking and reliably English audio; move it
-  // back to the front once it's confirmed stable again.
-  { name: 'videasy', url: 'https://player.videasy.net', type: 'tmdb' },
+interface Provider {
+  name: string;
+  url: string;
+  type: 'tmdb' | 'imdb';
+  /**
+   * Origins whose postMessage traffic we accept for this provider.
+   *
+   * Normally just the origin of `url`, but a provider that redirects
+   * serves its player — and therefore posts its messages — from the
+   * host it lands on, not the one we requested. Stays a strict
+   * allowlist; never widen this to a wildcard, since any page on the
+   * internet can postMessage this window.
+   */
+  origins?: string[];
+}
+
+const PROVIDERS: Provider[] = [
+  // Default. The only provider that broadcasts playback progress
+  // (MEDIA_DATA over postMessage), which is what watch-room drift and
+  // episode auto-marking depend on. Has had upstream 502s before; if it
+  // goes down again, move vidlink to the front — but note that doing so
+  // silently disables progress-based features.
+  //
+  // .net 301-redirects to .to. Pointing straight at .to avoids the hop,
+  // and both are listed below because the redirect means either host can
+  // end up being the one that posts progress.
+  {
+    name: 'videasy',
+    url: 'https://player.videasy.to',
+    type: 'tmdb',
+    origins: ['https://player.videasy.to', 'https://player.videasy.net'],
+  },
+  // Verified live: resolves the correct title for both movies and TV and
+  // plays inline. Reports no progress.
   { name: 'vidlink', url: 'https://vidlink.pro', type: 'tmdb' },
   // "Pro Multi" backend is an unreliable multi-language aggregator that can
   // fall back to unrelated (often Bollywood) content once you hit play —
@@ -66,11 +95,15 @@ const VideoPlayer = ({
   title, 
   posterPath,
   videos = [],
-  onProgress
+  onProgress,
+  preferredProvider
 }: VideoPlayerProps) => {
   const { user } = useAuth();
   const [isLoading, setIsLoading] = useState(true);
-  const [activeProvider, setActiveProvider] = useState(PROVIDERS[0]);
+  const [activeProvider, setActiveProvider] = useState(
+    () => PROVIDERS.find((p) => p.name === preferredProvider) ?? PROVIDERS[0]
+  );
+
   const [lightsOff, setLightsOff] = useState(false);
   // Invariant maintained by every setter that touches these: genZMode true
   // always implies lightsOff true, since the split layout only makes sense
@@ -234,16 +267,16 @@ const VideoPlayer = ({
   // Providers that don't post anything simply never fire this.
   useEffect(() => {
     if (!onProgress) return;
-    let providerOrigin: string;
+    let allowedOrigins: string[];
     try {
-      providerOrigin = new URL(activeProvider.url).origin;
+      allowedOrigins = activeProvider.origins ?? [new URL(activeProvider.url).origin];
     } catch {
       return;
     }
 
     const handler = (event: MessageEvent) => {
       // Any page can postMessage us; only trust the embed we actually loaded.
-      if (event.origin !== providerOrigin) return;
+      if (!allowedOrigins.includes(event.origin)) return;
 
       let envelope: any;
       try {

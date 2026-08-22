@@ -1,14 +1,17 @@
 import { supabase } from './supabase';
+import { currentUserId, requireUserId } from './session';
 
 export interface WatchingFriend {
   user_id: string;
-  media_type: 'movie' | 'tv';
-  media_id: string;
+  /** Null when the friend is incognito — masked server-side, not in the UI. */
+  media_type: 'movie' | 'tv' | null;
+  media_id: string | null;
   title: string;
   poster_path: string | null;
   season: number | null;
   episode: number | null;
   updated_at: string;
+  is_incognito: boolean;
   username: string;
   display_name: string | null;
   avatar_url: string | null;
@@ -36,9 +39,17 @@ export interface NowWatchingInput {
 
 /** One row per user (user_id is the PK), so this overwrites rather than accumulating. */
 export async function upsertNowWatching(input: NowWatchingInput): Promise<void> {
-  const { data } = await supabase.auth.getUser();
-  const userId = data.user?.id;
+  const userId = await currentUserId();
   if (!userId) return;
+
+  // Read the preference at heartbeat time rather than caching it, so
+  // flipping incognito takes effect on the next beat instead of needing
+  // a reload.
+  const { data: prefs } = await supabase
+    .from('profiles')
+    .select('watch_incognito')
+    .eq('id', userId)
+    .maybeSingle();
 
   await supabase.from('now_watching').upsert(
     {
@@ -49,15 +60,41 @@ export async function upsertNowWatching(input: NowWatchingInput): Promise<void> 
       poster_path: input.posterPath ?? null,
       season: input.season ?? null,
       episode: input.episode ?? null,
+      is_incognito: Boolean(prefs?.watch_incognito),
       updated_at: new Date().toISOString(),
     },
     { onConflict: 'user_id' }
   );
 }
 
+export async function getIncognito(): Promise<boolean> {
+  const userId = await currentUserId();
+  if (!userId) return false;
+
+  const { data } = await supabase
+    .from('profiles')
+    .select('watch_incognito')
+    .eq('id', userId)
+    .maybeSingle();
+  return Boolean(data?.watch_incognito);
+}
+
+export async function setIncognito(value: boolean): Promise<void> {
+  const userId = await requireUserId();
+
+  const { error } = await supabase
+    .from('profiles')
+    .update({ watch_incognito: value })
+    .eq('id', userId);
+  if (error) throw error;
+
+  // Apply to the row already broadcasting, so the change is visible now
+  // rather than at the next heartbeat.
+  await supabase.from('now_watching').update({ is_incognito: value }).eq('user_id', userId);
+}
+
 export async function clearNowWatching(): Promise<void> {
-  const { data } = await supabase.auth.getUser();
-  const userId = data.user?.id;
+  const userId = await currentUserId();
   if (!userId) return;
   await supabase.from('now_watching').delete().eq('user_id', userId);
 }

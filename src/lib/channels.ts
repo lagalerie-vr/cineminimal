@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { requireUserId } from './session';
 
 export interface Channel {
   id: string;
@@ -10,6 +11,8 @@ export interface Channel {
   member_count: number;
   post_count: number;
   is_member: boolean;
+  recent_post_count: number;
+  last_activity: string | null;
 }
 
 function normalize(row: any): Channel {
@@ -18,6 +21,8 @@ function normalize(row: any): Channel {
     member_count: Number(row.member_count ?? 0),
     post_count: Number(row.post_count ?? 0),
     is_member: Boolean(row.is_member),
+    recent_post_count: Number(row.recent_post_count ?? 0),
+    last_activity: row.last_activity ?? null,
   };
 }
 
@@ -40,9 +45,7 @@ export async function createChannel(input: {
   name: string;
   description?: string | null;
 }): Promise<Channel> {
-  const { data: userData } = await supabase.auth.getUser();
-  const userId = userData.user?.id;
-  if (!userId) throw new Error('Not signed in');
+  const userId = await requireUserId();
 
   const slug = input.slug.trim().toLowerCase();
   if (!/^[a-z0-9_]{2,24}$/.test(slug)) {
@@ -73,9 +76,7 @@ export async function createChannel(input: {
 }
 
 export async function joinChannel(channelId: string): Promise<void> {
-  const { data: userData } = await supabase.auth.getUser();
-  const userId = userData.user?.id;
-  if (!userId) throw new Error('Not signed in');
+  const userId = await requireUserId();
 
   const { error } = await supabase
     .from('channel_members')
@@ -84,9 +85,7 @@ export async function joinChannel(channelId: string): Promise<void> {
 }
 
 export async function leaveChannel(channelId: string): Promise<void> {
-  const { data: userData } = await supabase.auth.getUser();
-  const userId = userData.user?.id;
-  if (!userId) throw new Error('Not signed in');
+  const userId = await requireUserId();
 
   const { error } = await supabase
     .from('channel_members')

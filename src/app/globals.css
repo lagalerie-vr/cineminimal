@@ -59,3 +59,14 @@ body {
   transform: translateY(-8px) scale(1.02);
   box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 10px 10px -5px rgba(0, 0, 0, 0.4);
 }
+
+/* Used by horizontally-scrolling strips (franchise rows, the server
+   picker). Referenced in components since those were written, but never
+   actually defined — so the scrollbars were always visible. */
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}

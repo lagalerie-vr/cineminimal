@@ -6,6 +6,7 @@ import { useParams } from 'next/navigation';
 import { useAuth } from '@/components/AuthProvider';
 import VideoPlayer from '@/components/VideoPlayer';
 import FriendAvatar from '@/components/FriendAvatar';
+import UserLink from '@/components/UserLink';
 import {
   getRoomByCode,
   joinRoom,
@@ -48,6 +49,7 @@ export default function WatchRoomPage() {
   const [copied, setCopied] = useState(false);
   const [draft, setDraft] = useState('');
   const [countdown, setCountdown] = useState<number | null>(null);
+  const [hasProgress, setHasProgress] = useState(false);
 
   // Latest reported position, so the heartbeat has something to send
   // even between progress events.
@@ -60,7 +62,14 @@ export default function WatchRoomPage() {
   }, []);
 
   useEffect(() => {
-    if (authLoading || !user || !code) return;
+    if (authLoading) return;
+    // Must clear `loading` here, not just bail: the spinner is checked
+    // before the signed-out branch, so leaving it true makes the sign-in
+    // screen unreachable and the page hangs forever.
+    if (!user || !code) {
+      setLoading(false);
+      return;
+    }
     let cancelled = false;
 
     (async () => {
@@ -251,8 +260,10 @@ export default function WatchRoomPage() {
               episode={room.episode ?? 1}
               title={room.title}
               posterPath={room.poster_path ?? undefined}
+              preferredProvider="videasy"
               onProgress={(p) => {
                 myPosition.current = p;
+                setHasProgress(true);
               }}
             />
 
@@ -262,6 +273,12 @@ export default function WatchRoomPage() {
                 embeds that can&apos;t be controlled remotely. Use the countdown to start
                 together, and the drift readout to stay in step.
               </p>
+              {!hasProgress && (
+                <p className="text-[11px] text-yellow-500/80 leading-relaxed">
+                  Waiting for playback position. Only the <strong>videasy</strong> server
+                  reports progress — on any other server the drift readout stays empty.
+                </p>
+              )}
               <div className="flex gap-2">
                 <input
                   readOnly
@@ -302,11 +319,15 @@ export default function WatchRoomPage() {
 
                   return (
                     <div key={m.user_id} className="flex items-center gap-3 p-2 rounded-xl">
-                      <FriendAvatar profile={m} size={32} />
+                      <UserLink username={isMe ? null : m.username}>
+                        <FriendAvatar profile={m} size={32} />
+                      </UserLink>
                       <div className="min-w-0 flex-1">
-                        <p className="text-xs font-bold text-white truncate">
-                          {isMe ? 'You' : m.display_name || m.username}
-                        </p>
+                        <UserLink username={isMe ? null : m.username}>
+                          <p className="text-xs font-bold text-white truncate hover:text-accent transition-colors">
+                            {isMe ? 'You' : m.display_name || m.username}
+                          </p>
+                        </UserLink>
                         <p className="text-[10px] text-muted">
                           {!known
                             ? 'no position yet'
@@ -344,11 +365,20 @@ export default function WatchRoomPage() {
                 ) : (
                   messages.map((m) => (
                     <div key={m.id} className="flex items-start gap-2">
-                      {m.author && <FriendAvatar profile={m.author} size={26} />}
+                      {m.author && (
+                        <UserLink username={m.author.username}>
+                          <FriendAvatar profile={m.author} size={26} />
+                        </UserLink>
+                      )}
                       <div className="min-w-0">
                         <p className="text-[10px] text-muted">
-                          {m.author?.display_name || m.author?.username || 'Someone'} ·{' '}
-                          {timeAgo(m.created_at)}
+                          <UserLink
+                            username={m.author?.username}
+                            className="font-bold hover:text-accent"
+                          >
+                            {m.author?.display_name || m.author?.username || 'Someone'}
+                          </UserLink>{' '}
+                          · {timeAgo(m.created_at)}
                         </p>
                         <p className="text-xs text-white/80 break-words">{m.body}</p>
                       </div>

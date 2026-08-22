@@ -4,11 +4,19 @@ import React, { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/components/AuthProvider';
 import MovieCard from '@/components/MovieCard';
-import { Bookmark, Loader2, ArrowLeft } from 'lucide-react';
+import { Bookmark, Users } from 'lucide-react';
+import PageShell from '@/components/ui/PageShell';
+import EmptyState from '@/components/ui/EmptyState';
+import TabStrip from '@/components/ui/TabStrip';
+import { PageSpinner, SignInPrompt } from '@/components/ui/AuthGate';
+import SharedWatchlistsOverview from '@/components/SharedWatchlistsOverview';
 import Link from 'next/link';
+
+type Tab = 'mine' | 'shared';
 
 export default function WatchlistPage() {
   const { user, loading: authLoading } = useAuth();
+  const [tab, setTab] = useState<Tab>('mine');
   const [items, setItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -34,49 +42,38 @@ export default function WatchlistPage() {
     }
   }, [user, authLoading]);
 
-  if (authLoading || loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="animate-spin text-accent" size={40} />
-      </div>
-    );
-  }
+  if (authLoading || loading) return <PageSpinner />;
 
   if (!user) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center space-y-6 px-6">
-        <Bookmark size={64} className="text-white/10" />
-        <div className="text-center space-y-2">
-          <h1 className="text-2xl font-bold">Your Watchlist is Private</h1>
-          <p className="text-muted max-w-sm">Sign in to save your favorite movies and TV shows across all your devices.</p>
-        </div>
-        <Link href="/login" className="bg-accent text-white px-8 py-3 rounded-2xl font-bold shadow-xl shadow-accent/20 hover:scale-105 transition-all">
-          Sign In Now
-        </Link>
-      </div>
+      <SignInPrompt
+        icon={Bookmark}
+        title="Your Watchlist is Private"
+        body="Sign in to save your favorite movies and TV shows across all your devices."
+        redirectTo="/watchlist"
+      />
     );
   }
 
   return (
-    <div className="pt-32 pb-20 min-h-screen">
-      <div className="container mx-auto px-6 space-y-12">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-4">
-            <div className="w-12 h-12 bg-accent/20 border border-accent/20 rounded-2xl flex items-center justify-center text-accent">
-              <Bookmark size={24} />
-            </div>
-            <div>
-              <h1 className="text-3xl font-bold text-white tracking-tight">Your Watchlist</h1>
-              <p className="text-muted text-sm">{items.length} titles saved</p>
-            </div>
-          </div>
-          <Link href="/" className="hidden md:flex items-center space-x-2 text-muted hover:text-white transition-colors text-sm font-medium">
-            <ArrowLeft size={16} />
-            <span>Back to Home</span>
-          </Link>
-        </div>
+    <PageShell
+      icon={Bookmark}
+      title="Your Watchlist"
+      subtitle={`${items.length} titles saved`}
+      width="wide"
+    >
+        <TabStrip
+          active={tab}
+          onSelect={(k) => setTab(k as Tab)}
+          tabs={[
+            { key: 'mine', label: 'Mine', icon: Bookmark },
+            { key: 'shared', label: 'Shared', icon: Users },
+          ]}
+        />
 
-        {items.length > 0 ? (
+        {tab === 'shared' ? (
+          <SharedWatchlistsOverview />
+        ) : items.length > 0 ? (
           <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-6">
             {items.map((item: any) => (
               <MovieCard 
@@ -91,18 +88,17 @@ export default function WatchlistPage() {
             ))}
           </div>
         ) : (
-          <div className="py-32 text-center space-y-6">
-            <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-white/5 border border-white/10 text-white/20">
-              <Bookmark size={32} />
-            </div>
-            <div className="space-y-2">
-              <h2 className="text-xl font-bold">Your watchlist is empty</h2>
-              <p className="text-muted max-w-xs mx-auto text-sm">Add movies and shows you want to watch later and they'll appear here.</p>
-            </div>
-            <Link href="/movies" className="inline-block text-accent font-bold hover:underline">Explore Movies</Link>
-          </div>
+          <EmptyState
+            icon={Bookmark}
+            title="Your watchlist is empty"
+            body="Add movies and shows you want to watch later and they'll appear here."
+            action={
+              <Link href="/movies" className="inline-block text-accent font-bold hover:underline">
+                Explore Movies
+              </Link>
+            }
+          />
         )}
-      </div>
-    </div>
+    </PageShell>
   );
 }

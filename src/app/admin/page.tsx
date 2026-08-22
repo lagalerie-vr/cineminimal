@@ -5,18 +5,9 @@ import Link from 'next/link';
 import { useAuth } from '@/components/AuthProvider';
 import FriendAvatar from '@/components/FriendAvatar';
 import { listUsers, setBanned, purgeUserContent, type AdminUser } from '@/lib/moderation';
-import {
-  ShieldCheck,
-  Loader2,
-  ArrowLeft,
-  AlertCircle,
-  Ban,
-  RotateCcw,
-  Trash2,
-  MessageSquare,
-  Search,
-  X,
-} from 'lucide-react';
+import { ShieldCheck, Loader2, AlertCircle, Ban, RotateCcw, Trash2, MessageSquare, Search, X } from 'lucide-react';
+import PageShell from '@/components/ui/PageShell';
+import { PageSpinner } from '@/components/ui/AuthGate';
 
 export default function AdminPage() {
   const { user, isAdmin, loading: authLoading } = useAuth();
@@ -90,13 +81,7 @@ export default function AdminPage() {
     }
   };
 
-  if (authLoading || loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="animate-spin text-accent" size={40} />
-      </div>
-    );
-  }
+  if (authLoading || loading) return <PageSpinner />;
 
   // Cosmetic gate only — every RPC re-checks is_admin() server-side, so
   // reaching this URL directly gains nothing.
@@ -116,29 +101,11 @@ export default function AdminPage() {
   }
 
   return (
-    <div className="pt-32 pb-20 min-h-screen">
-      <div className="container mx-auto px-6 max-w-3xl space-y-8">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-4">
-            <div className="w-12 h-12 bg-accent/20 border border-accent/20 rounded-2xl flex items-center justify-center text-accent">
-              <ShieldCheck size={24} />
-            </div>
-            <div>
-              <h1 className="text-3xl font-bold text-white tracking-tight">Moderation</h1>
-              <p className="text-muted text-sm">
-                {query.trim() ? `${filtered.length} of ${users.length} users` : `${users.length} users`}
-              </p>
-            </div>
-          </div>
-          <Link
-            href="/"
-            className="hidden md:flex items-center space-x-2 text-muted hover:text-white transition-colors text-sm font-medium"
-          >
-            <ArrowLeft size={16} />
-            <span>Back to Home</span>
-          </Link>
-        </div>
-
+    <PageShell
+      icon={ShieldCheck}
+      title="Moderation"
+      subtitle={query.trim() ? `${filtered.length} of ${users.length} users` : `${users.length} users`}
+    >
         {error && (
           <div className="bg-red-500/10 border border-red-500/20 rounded-2xl p-4 flex items-start space-x-3 text-red-400 text-sm">
             <AlertCircle size={18} className="shrink-0 mt-0.5" />
@@ -246,7 +213,6 @@ export default function AdminPage() {
             </div>
           ))}
         </div>
-      </div>
-    </div>
+    </PageShell>
   );
 }

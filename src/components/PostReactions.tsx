@@ -9,6 +9,7 @@ import {
   REACTION_EMOJI,
   REACTION_LABEL,
   setReaction,
+  applyReactionDelta,
   type Reaction,
 } from '@/lib/posts';
 
@@ -18,22 +19,6 @@ interface PostReactionsProps {
   myReaction: Reaction | null;
   /** Parent keeps the post row in sync so a refetch isn't needed. */
   onChanged: (next: { myReaction: Reaction | null; counts: Partial<Record<Reaction, number>> }) => void;
-}
-
-/** Applies a reaction change to the count map without refetching. */
-function applyDelta(
-  counts: Partial<Record<Reaction, number>>,
-  from: Reaction | null,
-  to: Reaction | null
-): Partial<Record<Reaction, number>> {
-  const next = { ...counts };
-  if (from) {
-    const remaining = (next[from] ?? 1) - 1;
-    if (remaining > 0) next[from] = remaining;
-    else delete next[from];
-  }
-  if (to) next[to] = (next[to] ?? 0) + 1;
-  return next;
 }
 
 const PostReactions = ({ postId, counts, myReaction, onChanged }: PostReactionsProps) => {
@@ -54,7 +39,7 @@ const PostReactions = ({ postId, counts, myReaction, onChanged }: PostReactionsP
     const previousCounts = counts;
 
     // Optimistic: reactions should feel instant.
-    onChanged({ myReaction: target, counts: applyDelta(counts, myReaction, target) });
+    onChanged({ myReaction: target, counts: applyReactionDelta(counts, myReaction, target) });
     setBusy(true);
 
     try {

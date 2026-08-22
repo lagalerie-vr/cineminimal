@@ -9,7 +9,9 @@ import {
   getComments,
   addComment,
   deleteComment,
+  updateComment,
   setCommentReaction,
+  applyReactionDelta,
   timeAgo,
   REACTIONS,
   REACTION_EMOJI,
@@ -17,7 +19,7 @@ import {
   type PostComment,
   type Reaction,
 } from '@/lib/posts';
-import { Loader2, Send, Trash2, AlertCircle, SmilePlus, CornerDownRight } from 'lucide-react';
+import { Loader2, Send, Trash2, AlertCircle, SmilePlus, CornerDownRight, Pencil, Check, X } from 'lucide-react';
 
 interface PostCommentsProps {
   postId: string;
@@ -28,21 +30,6 @@ interface PostCommentsProps {
 
 const MAX_COMMENT = 1000;
 
-function applyDelta(
-  counts: Partial<Record<Reaction, number>>,
-  from: Reaction | null,
-  to: Reaction | null
-): Partial<Record<Reaction, number>> {
-  const next = { ...counts };
-  if (from) {
-    const remaining = (next[from] ?? 1) - 1;
-    if (remaining > 0) next[from] = remaining;
-    else delete next[from];
-  }
-  if (to) next[to] = (next[to] ?? 0) + 1;
-  return next;
-}
-
 const PostComments = ({ postId, postOwnerId, onCountChange }: PostCommentsProps) => {
   const { user } = useAuth();
   const [comments, setComments] = useState<PostComment[]>([]);
@@ -51,6 +38,9 @@ const PostComments = ({ postId, postOwnerId, onCountChange }: PostCommentsProps)
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [replyTo, setReplyTo] = useState<PostComment | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editDraft, setEditDraft] = useState('');
+  const [savingEdit, setSavingEdit] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -97,10 +87,35 @@ const PostComments = ({ postId, postOwnerId, onCountChange }: PostCommentsProps)
     }
   };
 
+  const saveEdit = async (comment: PostComment) => {
+    const next = editDraft.trim();
+    if (!next || next === comment.body) {
+      setEditingId(null);
+      return;
+    }
+    setSavingEdit(true);
+    try {
+      await updateComment(comment.id, next);
+      const stamp = new Date().toISOString();
+      const patch = (list: PostComment[]): PostComment[] =>
+        list.map((c) =>
+          c.id === comment.id
+            ? { ...c, body: next, edited_at: stamp }
+            : { ...c, replies: patch(c.replies) }
+        );
+      setComments(patch);
+      setEditingId(null);
+    } catch (err: any) {
+      setError(err?.message ?? 'Could not save that edit.');
+    } finally {
+      setSavingEdit(false);
+    }
+  };
+
   /** Optimistic reaction update, walking one level of nesting. */
   const react = async (comment: PostComment, reaction: Reaction) => {
     const target = comment.my_reaction === reaction ? null : reaction;
-    const nextCounts = applyDelta(comment.reaction_counts, comment.my_reaction, target);
+    const nextCounts = applyReactionDelta(comment.reaction_counts, comment.my_reaction, target);
 
     const patch = (list: PostComment[]): PostComment[] =>
       list.map((c) =>
@@ -146,10 +161,40 @@ const PostComments = ({ postId, postOwnerId, onCountChange }: PostCommentsProps)
                   <span className="text-xs font-bold text-white/50">Unknown</span>
                 )}
                 <span className="text-[10px] text-muted">{timeAgo(c.created_at)}</span>
+                {c.edited_at && <span className="text-[10px] text-muted">(edited)</span>}
               </div>
-              <p className="text-sm text-white/80 leading-relaxed whitespace-pre-line break-words">
-                {c.body}
-              </p>
+              {editingId === c.id ? (
+                <div className="space-y-2 mt-1">
+                  <textarea
+                    value={editDraft}
+                    autoFocus
+                    onChange={(e) => setEditDraft(e.target.value.slice(0, MAX_COMMENT))}
+                    rows={2}
+                    className="w-full min-w-[16rem] bg-black/30 border border-white/10 rounded-xl py-2 px-3 text-white text-sm outline-none focus:border-accent resize-none"
+                  />
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => saveEdit(c)}
+                      disabled={savingEdit || !editDraft.trim()}
+                      className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-accent text-white text-[10px] font-bold uppercase tracking-widest disabled:opacity-40"
+                    >
+                      {savingEdit ? <Loader2 className="animate-spin" size={11} /> : <Check size={11} />}
+                      <span>Save</span>
+                    </button>
+                    <button
+                      onClick={() => setEditingId(null)}
+                      className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-white/40 hover:text-white text-[10px] font-bold uppercase tracking-widest"
+                    >
+                      <X size={11} />
+                      <span>Cancel</span>
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-sm text-white/80 leading-relaxed whitespace-pre-line break-words">
+                  {c.body}
+                </p>
+              )}
             </div>
 
             <div className="flex items-center gap-3 mt-1 ml-1">
@@ -163,6 +208,21 @@ const PostComments = ({ postId, postOwnerId, onCountChange }: PostCommentsProps)
                   className="text-[10px] font-bold uppercase tracking-widest text-white/30 hover:text-accent transition-colors"
                 >
                   Reply
+                </button>
+              )}
+
+              {/* Authors only — moderators can delete, but rewriting
+                  someone's words under their name is a different thing. */}
+              {user?.id === c.user_id && editingId !== c.id && (
+                <button
+                  onClick={() => {
+                    setEditDraft(c.body);
+                    setEditingId(c.id);
+                  }}
+                  className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest text-white/30 hover:text-accent transition-colors"
+                >
+                  <Pencil size={10} />
+                  <span>Edit</span>
                 </button>
               )}
 

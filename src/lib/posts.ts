@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { currentUserId, requireUserId } from './session';
 import { fetchProfiles, type PublicProfile } from './friends';
 
 export const REACTIONS = ['like', 'love', 'laugh', 'wow', 'sad'] as const;
@@ -36,6 +37,7 @@ export interface Post {
   season: number | null;
   episode: number | null;
   created_at: string;
+  edited_at: string | null;
   channel_id: string | null;
   channel_slug: string | null;
   channel_name: string | null;
@@ -45,6 +47,34 @@ export interface Post {
   comment_count: number;
   reaction_counts: Partial<Record<Reaction, number>>;
   my_reaction: Reaction | null;
+  /** Set when this post is a repost of another. */
+  repost_of: string | null;
+  /**
+   * The original, embedded. Null when the viewer can't see it — RLS
+   * still applies inside the feed query, so a repost never leaks a post
+   * the viewer wasn't allowed to read.
+   */
+  repost_source: RepostSource | null;
+  repost_count: number;
+  i_reposted: boolean;
+}
+
+/** The subset of a post shown inside a repost card. */
+export interface RepostSource {
+  id: string;
+  user_id: string;
+  body: string;
+  image_url: string | null;
+  media_type: 'movie' | 'tv' | null;
+  media_id: string | null;
+  media_title: string | null;
+  poster_path: string | null;
+  season: number | null;
+  episode: number | null;
+  created_at: string;
+  username: string;
+  display_name: string | null;
+  avatar_url: string | null;
 }
 
 export interface PostComment {
@@ -54,6 +84,7 @@ export interface PostComment {
   parent_id: string | null;
   body: string;
   created_at: string;
+  edited_at: string | null;
   author: PublicProfile | null;
   reaction_counts: Partial<Record<Reaction, number>>;
   my_reaction: Reaction | null;
@@ -87,9 +118,30 @@ export interface CreatePostInput {
     season?: number | null;
     episode?: number | null;
   } | null;
+  /** Set to quote-repost another post. */
+  repostOf?: string | null;
 }
 
 export const PAGE_SIZE = 20;
+
+/**
+ * Applies a reaction change to a count map without refetching. Shared by
+ * post and comment reaction pickers, which were carrying identical copies.
+ */
+export function applyReactionDelta(
+  counts: Partial<Record<Reaction, number>>,
+  from: Reaction | null,
+  to: Reaction | null
+): Partial<Record<Reaction, number>> {
+  const next = { ...counts };
+  if (from) {
+    const remaining = (next[from] ?? 1) - 1;
+    if (remaining > 0) next[from] = remaining;
+    else delete next[from];
+  }
+  if (to) next[to] = (next[to] ?? 0) + 1;
+  return next;
+}
 
 function normalizePost(row: any): Post {
   return {
@@ -97,14 +149,27 @@ function normalizePost(row: any): Post {
     // bigint comes back as a number or a string depending on size.
     comment_count: Number(row.comment_count ?? 0),
     reaction_counts: (row.reaction_counts ?? {}) as Partial<Record<Reaction, number>>,
+    repost_of: row.repost_of ?? null,
+    repost_source: (row.repost_source ?? null) as RepostSource | null,
+    repost_count: Number(row.repost_count ?? 0),
+    i_reposted: Boolean(row.i_reposted),
   };
+}
+
+export interface MediaScope {
+  type: 'movie' | 'tv';
+  id: string;
+  /** Optional: narrow a show's discussion to one episode. */
+  season?: number | null;
+  episode?: number | null;
 }
 
 async function fetchPosts(
   targetUser: string | null,
   cursor?: PostCursor | null,
   targetChannel?: string | null,
-  media?: { type: 'movie' | 'tv'; id: string } | null
+  media?: MediaScope | null,
+  targetPost?: string | null
 ): Promise<Post[]> {
   const { data, error } = await supabase.rpc('get_posts', {
     target_user: targetUser,
@@ -114,10 +179,19 @@ async function fetchPosts(
     target_channel: targetChannel ?? null,
     target_media_type: media?.type ?? null,
     target_media_id: media?.id ?? null,
+    target_post: targetPost ?? null,
+    target_season: media?.season ?? null,
+    target_episode: media?.episode ?? null,
   });
 
   if (error) throw error;
   return (data as any[]).map(normalizePost);
+}
+
+/** A single post, for permalinks. Null when it doesn't exist or RLS hides it. */
+export async function getPostById(id: string): Promise<Post | null> {
+  const rows = await fetchPosts(null, null, null, null, id);
+  return rows[0] ?? null;
 }
 
 /** Your posts plus your friends', newest first. */
@@ -144,15 +218,19 @@ export function getChannelPosts(channelId: string, cursor?: PostCursor | null): 
 export function getTitlePosts(
   mediaType: 'movie' | 'tv',
   mediaId: string | number,
-  cursor?: PostCursor | null
+  cursor?: PostCursor | null,
+  scope?: { season?: number | null; episode?: number | null }
 ): Promise<Post[]> {
-  return fetchPosts(null, cursor, null, { type: mediaType, id: String(mediaId) });
+  return fetchPosts(null, cursor, null, {
+    type: mediaType,
+    id: String(mediaId),
+    season: scope?.season ?? null,
+    episode: scope?.episode ?? null,
+  });
 }
 
 export async function createPost(input: CreatePostInput): Promise<void> {
-  const { data: userData } = await supabase.auth.getUser();
-  const userId = userData.user?.id;
-  if (!userId) throw new Error('Not signed in');
+  const userId = await requireUserId();
 
   const { error } = await supabase.from('posts').insert({
     user_id: userId,
@@ -168,8 +246,47 @@ export async function createPost(input: CreatePostInput): Promise<void> {
     poster_path: input.media?.posterPath ?? null,
     season: input.media?.season ?? null,
     episode: input.media?.episode ?? null,
+    repost_of: input.repostOf ?? null,
   });
 
+  if (error) throw error;
+}
+
+/**
+ * Plain repost — no commentary. Reposting a repost targets the original
+ * so chains can't form; the DB rejects a self-reference either way.
+ */
+export async function repost(post: Post): Promise<void> {
+  const userId = await requireUserId();
+  const targetId = post.repost_of ?? post.id;
+
+  const { error } = await supabase.from('posts').insert({
+    user_id: userId,
+    body: '',
+    // A repost of a friends-only post stays friends-only: widening it
+    // would expose the original to people the author didn't share with.
+    visibility: post.visibility,
+    repost_of: targetId,
+  });
+  if (error) throw error;
+}
+
+/** Removes your plain repost of a post. Quote reposts are deleted as posts. */
+export async function undoRepost(post: Post): Promise<void> {
+  const userId = await requireUserId();
+  const targetId = post.repost_of ?? post.id;
+
+  const { error } = await supabase
+    .from('posts')
+    .delete()
+    .eq('user_id', userId)
+    .eq('repost_of', targetId)
+    .eq('body', '');
+  if (error) throw error;
+}
+
+export async function updatePost(id: string, body: string): Promise<void> {
+  const { error } = await supabase.from('posts').update({ body: body.trim() }).eq('id', id);
   if (error) throw error;
 }
 
@@ -186,9 +303,7 @@ export async function deletePost(id: string): Promise<void> {
  * PostgREST emits ON CONFLICT DO UPDATE here.
  */
 export async function setReaction(postId: string, reaction: Reaction | null): Promise<void> {
-  const { data: userData } = await supabase.auth.getUser();
-  const userId = userData.user?.id;
-  if (!userId) throw new Error('Not signed in');
+  const userId = await requireUserId();
 
   if (reaction === null) {
     const { error } = await supabase
@@ -213,8 +328,7 @@ export async function setReaction(postId: string, reaction: Reaction | null): Pr
  * `profiles_public` because a view has no foreign keys.
  */
 export async function getComments(postId: string): Promise<PostComment[]> {
-  const { data: userData } = await supabase.auth.getUser();
-  const me = userData.user?.id ?? null;
+  const me = await currentUserId();
 
   const { data, error } = await supabase
     .from('post_comments')
@@ -231,6 +345,7 @@ export async function getComments(postId: string): Promise<PostComment[]> {
     parent_id: string | null;
     body: string;
     created_at: string;
+    edited_at: string | null;
   }[];
 
   if (rows.length === 0) return [];
@@ -290,9 +405,7 @@ export async function addComment(
   body: string,
   parentId?: string | null
 ): Promise<void> {
-  const { data: userData } = await supabase.auth.getUser();
-  const userId = userData.user?.id;
-  if (!userId) throw new Error('Not signed in');
+  const userId = await requireUserId();
 
   const { error } = await supabase.from('post_comments').insert({
     post_id: postId,
@@ -307,9 +420,7 @@ export async function setCommentReaction(
   commentId: string,
   reaction: Reaction | null
 ): Promise<void> {
-  const { data: userData } = await supabase.auth.getUser();
-  const userId = userData.user?.id;
-  if (!userId) throw new Error('Not signed in');
+  const userId = await requireUserId();
 
   if (reaction === null) {
     const { error } = await supabase
@@ -360,6 +471,14 @@ export function subscribeToFeed(onChange: () => void): () => void {
   return () => {
     supabase.removeChannel(channel);
   };
+}
+
+export async function updateComment(id: string, body: string): Promise<void> {
+  const { error } = await supabase
+    .from('post_comments')
+    .update({ body: body.trim() })
+    .eq('id', id);
+  if (error) throw error;
 }
 
 export async function deleteComment(id: string): Promise<void> {

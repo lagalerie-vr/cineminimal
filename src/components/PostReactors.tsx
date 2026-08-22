@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Loader2, X } from 'lucide-react';
 import FriendAvatar from './FriendAvatar';
+import ModalPortal from './ModalPortal';
 import { getReactors, REACTION_EMOJI, REACTION_LABEL, type Reactor } from '@/lib/posts';
 
 interface PostReactorsProps {
@@ -35,6 +36,7 @@ const PostReactors = ({ postId, onClose }: PostReactorsProps) => {
   }, [onClose]);
 
   return (
+    <ModalPortal>
     <AnimatePresence>
       <motion.div
         initial={{ opacity: 0 }}
@@ -106,6 +108,7 @@ const PostReactors = ({ postId, onClose }: PostReactorsProps) => {
         </motion.div>
       </motion.div>
     </AnimatePresence>
+    </ModalPortal>
   );
 };
 

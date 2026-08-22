@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { currentUserId } from './session';
 import { fetchProfiles, type PublicProfile } from './friends';
 import { REACTION_EMOJI, type Reaction } from './posts';
 
@@ -7,7 +8,9 @@ export type NotificationType =
   | 'comment'
   | 'reaction'
   | 'friend_request'
-  | 'friend_accepted';
+  | 'friend_accepted'
+  | 'recommendation'
+  | 'dm';
 
 export interface AppNotification {
   id: string;
@@ -16,6 +19,8 @@ export interface AppNotification {
   post_id: string | null;
   comment_id: string | null;
   reaction: Reaction | null;
+  media_title: string | null;
+  thread_id: string | null;
   read_at: string | null;
   created_at: string;
 }
@@ -28,13 +33,10 @@ interface NotificationRow {
   post_id: string | null;
   comment_id: string | null;
   reaction: Reaction | null;
+  media_title: string | null;
+  thread_id: string | null;
   read_at: string | null;
   created_at: string;
-}
-
-async function currentUserId(): Promise<string | null> {
-  const { data } = await supabase.auth.getUser();
-  return data.user?.id ?? null;
 }
 
 /**
@@ -62,6 +64,8 @@ export async function getNotifications(limit = 20): Promise<AppNotification[]> {
     post_id: r.post_id,
     comment_id: r.comment_id,
     reaction: r.reaction,
+    media_title: r.media_title ?? null,
+    thread_id: r.thread_id ?? null,
     read_at: r.read_at,
     created_at: r.created_at,
   }));
@@ -152,23 +156,27 @@ export function describeNotification(n: AppNotification): string {
       return `${who} sent you a friend request`;
     case 'friend_accepted':
       return `${who} is now your friend`;
+    case 'recommendation':
+      return `${who} recommended ${n.media_title ?? 'something'} to you`;
+    case 'dm':
+      return `${who} sent you a message`;
     default:
       return `${who} did something`;
   }
 }
 
-/**
- * Where clicking a notification should land.
- *
- * Post-related ones point at the feed rather than the post itself — there
- * is no per-post permalink route yet.
- */
+/** Where clicking a notification should land. */
 export function notificationHref(n: AppNotification): string {
   switch (n.type) {
     case 'friend_request':
     case 'friend_accepted':
       return '/friends?tab=people';
+    case 'recommendation':
+      return '/watchlist';
+    case 'dm':
+      return n.thread_id ? `/messages?thread=${n.thread_id}` : '/messages';
     default:
-      return '/friends?tab=feed';
+      // Straight to the post itself rather than the feed.
+      return n.post_id ? `/p/${n.post_id}` : '/friends?tab=feed';
   }
 }

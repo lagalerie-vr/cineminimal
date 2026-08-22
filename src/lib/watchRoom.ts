@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { currentUserId, requireUserId } from './session';
 import { fetchProfiles, type PublicProfile } from './friends';
 
 /**
@@ -65,9 +66,7 @@ export interface CreateRoomInput {
 }
 
 export async function createRoom(input: CreateRoomInput): Promise<WatchRoom> {
-  const { data: userData } = await supabase.auth.getUser();
-  const userId = userData.user?.id;
-  if (!userId) throw new Error('Not signed in');
+  const userId = await requireUserId();
 
   // Retry on the (very unlikely) code collision rather than failing.
   for (let attempt = 0; attempt < 5; attempt++) {
@@ -108,9 +107,7 @@ export async function getRoomByCode(code: string): Promise<WatchRoom | null> {
 }
 
 export async function joinRoom(roomId: string): Promise<void> {
-  const { data: userData } = await supabase.auth.getUser();
-  const userId = userData.user?.id;
-  if (!userId) throw new Error('Not signed in');
+  const userId = await requireUserId();
 
   const { error } = await supabase
     .from('watch_room_members')
@@ -119,8 +116,7 @@ export async function joinRoom(roomId: string): Promise<void> {
 }
 
 export async function leaveRoom(roomId: string): Promise<void> {
-  const { data: userData } = await supabase.auth.getUser();
-  const userId = userData.user?.id;
+  const userId = await currentUserId();
   if (!userId) return;
   await supabase.from('watch_room_members').delete().eq('room_id', roomId).eq('user_id', userId);
 }
@@ -141,8 +137,7 @@ export async function reportPosition(
   positionSeconds: number,
   durationSeconds?: number | null
 ): Promise<void> {
-  const { data: userData } = await supabase.auth.getUser();
-  const userId = userData.user?.id;
+  const userId = await currentUserId();
   if (!userId) return;
 
   await supabase.from('watch_room_members').upsert(
@@ -179,9 +174,7 @@ export async function getMessages(roomId: string): Promise<RoomMessage[]> {
 }
 
 export async function sendMessage(roomId: string, body: string): Promise<void> {
-  const { data: userData } = await supabase.auth.getUser();
-  const userId = userData.user?.id;
-  if (!userId) throw new Error('Not signed in');
+  const userId = await requireUserId();
 
   const { error } = await supabase
     .from('watch_room_messages')

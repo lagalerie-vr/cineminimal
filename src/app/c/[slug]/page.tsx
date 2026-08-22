@@ -7,7 +7,10 @@ import { useAuth } from '@/components/AuthProvider';
 import PostComposer from '@/components/PostComposer';
 import PostFeed from '@/components/PostFeed';
 import { getChannelBySlug, joinChannel, leaveChannel, type Channel } from '@/lib/channels';
-import { Hash, Loader2, ArrowLeft, Users, MessageSquare, AlertCircle } from 'lucide-react';
+import { Hash, Loader2, Users, MessageSquare, AlertCircle } from 'lucide-react';
+import PageShell from '@/components/ui/PageShell';
+import EmptyState from '@/components/ui/EmptyState';
+import { PageSpinner, SignInPrompt } from '@/components/ui/AuthGate';
 
 export default function ChannelPage() {
   const params = useParams<{ slug: string }>();
@@ -60,77 +63,53 @@ export default function ChannelPage() {
     }
   };
 
-  if (authLoading || loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="animate-spin text-accent" size={40} />
-      </div>
-    );
-  }
+  if (authLoading || loading) return <PageSpinner />;
 
   if (!user) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center space-y-6 px-6">
-        <Hash size={64} className="text-white/10" />
-        <div className="text-center space-y-2">
-          <h1 className="text-2xl font-bold">Channels are for members</h1>
-          <p className="text-muted max-w-sm">Sign in to read and post in channels.</p>
-        </div>
-        <Link
-          href={`/login?redirect=/c/${encodeURIComponent(slug)}`}
-          className="bg-accent text-white px-8 py-3 rounded-2xl font-bold shadow-xl shadow-accent/20 hover:scale-105 transition-all"
-        >
-          Sign In Now
-        </Link>
-      </div>
+      <SignInPrompt
+        icon={Hash}
+        title="Channels are for members"
+        body="Sign in to read and post in channels."
+        redirectTo={`/c/${slug}`}
+      />
     );
   }
 
   if (!channel) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center space-y-6 px-6 text-center">
-        <Hash size={56} className="text-white/10" />
-        <div className="space-y-2">
-          <h1 className="text-2xl font-bold">Channel not found</h1>
-          <p className="text-muted max-w-sm text-sm">Nothing here goes by c/{slug}.</p>
-        </div>
-        <Link href="/friends?tab=channels" className="text-accent font-bold hover:underline">
-          Browse channels
-        </Link>
-      </div>
+      <EmptyState
+        icon={Hash}
+        title="Channel not found"
+        body={`Nothing here goes by c/${slug}.`}
+        action={
+          <Link href="/friends?tab=channels" className="text-accent font-bold hover:underline">
+            Browse channels
+          </Link>
+        }
+      />
     );
   }
 
   return (
-    <div className="pt-32 pb-20 min-h-screen">
-      <div className="container mx-auto px-6 max-w-2xl space-y-8">
-        <div className="flex items-center justify-between gap-4">
-          <div className="flex items-center space-x-4 min-w-0">
-            <div className="w-12 h-12 bg-accent/20 border border-accent/20 rounded-2xl flex items-center justify-center text-accent shrink-0">
-              <Hash size={24} />
-            </div>
-            <div className="min-w-0">
-              <h1 className="text-3xl font-bold text-white tracking-tight truncate">{channel.name}</h1>
-              <p className="flex items-center gap-3 text-muted text-sm">
-                <span>c/{channel.slug}</span>
-                <span className="flex items-center gap-1">
-                  <Users size={12} /> {channel.member_count}
-                </span>
-                <span className="flex items-center gap-1">
-                  <MessageSquare size={12} /> {channel.post_count}
-                </span>
-              </p>
-            </div>
-          </div>
-          <Link
-            href="/friends?tab=channels"
-            className="hidden md:flex items-center space-x-2 text-muted hover:text-white transition-colors text-sm font-medium shrink-0"
-          >
-            <ArrowLeft size={16} />
-            <span>All channels</span>
-          </Link>
-        </div>
-
+    <PageShell
+      icon={Hash}
+      title={channel.name}
+      backHref="/friends?tab=channels"
+      backLabel="All channels"
+      width="narrow"
+      subtitle={
+        <span className="flex items-center gap-3">
+          <span>c/{channel.slug}</span>
+          <span className="flex items-center gap-1">
+            <Users size={12} /> {channel.member_count}
+          </span>
+          <span className="flex items-center gap-1">
+            <MessageSquare size={12} /> {channel.post_count}
+          </span>
+        </span>
+      }
+    >
         {channel.description && (
           <p className="text-sm text-white/70 leading-relaxed">{channel.description}</p>
         )}
@@ -169,7 +148,6 @@ export default function ChannelPage() {
           emptyTitle="Nothing posted here yet"
           emptyBody="Be the first to start a conversation in this channel."
         />
-      </div>
-    </div>
+    </PageShell>
   );
 }

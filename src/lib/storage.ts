@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { requireUserId } from './session';
 import { resizeImage, validateImageFile, type ResizeMode } from './imageResize';
 
 export type ImageBucket = 'avatars' | 'covers' | 'post-images';
@@ -20,9 +21,7 @@ export async function uploadImage(
   const invalid = validateImageFile(file);
   if (invalid) throw new Error(invalid);
 
-  const { data: userData } = await supabase.auth.getUser();
-  const userId = userData.user?.id;
-  if (!userId) throw new Error('You need to be signed in to upload.');
+  const userId = await requireUserId();
 
   const { blob, extension } = await resizeImage(file, mode);
   const path = `${userId}/${crypto.randomUUID()}.${extension}`;

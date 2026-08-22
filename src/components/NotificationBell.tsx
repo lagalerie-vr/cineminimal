@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Bell, Loader2, CheckCheck } from 'lucide-react';
 import FriendAvatar from './FriendAvatar';
+import UserLink from './UserLink';
 import { useAuth } from './AuthProvider';
 import {
   getNotifications,
@@ -181,7 +182,9 @@ const NotificationBell = () => {
                       }`}
                     >
                       {n.actor ? (
-                        <FriendAvatar profile={n.actor} size={32} />
+                        <UserLink username={n.actor.username} nested>
+                          <FriendAvatar profile={n.actor} size={32} />
+                        </UserLink>
                       ) : (
                         <div className="w-8 h-8 rounded-full bg-white/5 shrink-0" />
                       )}

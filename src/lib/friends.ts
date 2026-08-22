@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { currentUserId } from './session';
 
 /**
  * Friend graph helpers.
@@ -62,11 +63,6 @@ export async function fetchProfiles(ids: string[]): Promise<Map<string, PublicPr
 
   if (error) throw error;
   return new Map((data as PublicProfile[]).map((p) => [p.id, p]));
-}
-
-async function currentUserId(): Promise<string | null> {
-  const { data } = await supabase.auth.getUser();
-  return data.user?.id ?? null;
 }
 
 /**

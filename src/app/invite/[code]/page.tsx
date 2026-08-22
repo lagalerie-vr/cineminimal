@@ -6,6 +6,7 @@ import { useParams } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { useAuth } from '@/components/AuthProvider';
 import FriendAvatar from '@/components/FriendAvatar';
+import UserLink from '@/components/UserLink';
 import { acceptInvite, type PublicProfile } from '@/lib/friends';
 import { Users, Loader2, AlertCircle, Check, Film } from 'lucide-react';
 
@@ -106,7 +107,9 @@ export default function InvitePage() {
               <h1 className="text-2xl font-bold text-white tracking-tight mb-2">You&apos;re connected</h1>
               {state.friend ? (
                 <div className="flex items-center justify-center gap-3 my-6">
-                  <FriendAvatar profile={state.friend} size={48} />
+                  <UserLink username={state.friend.username} nested>
+                    <FriendAvatar profile={state.friend} size={48} />
+                  </UserLink>
                   <div className="text-left">
                     <p className="text-sm font-bold text-white">
                       {state.friend.display_name || state.friend.username}

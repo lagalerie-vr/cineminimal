@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { currentUserId, requireUserId } from './session';
 import { PROFILE_COLUMNS, type PublicProfile } from './friends';
 
 /**
@@ -20,8 +21,7 @@ export interface ProfileUpdate {
 }
 
 export async function getMyProfile(): Promise<MyProfile | null> {
-  const { data: userData } = await supabase.auth.getUser();
-  const userId = userData.user?.id;
+  const userId = await currentUserId();
   if (!userId) return null;
 
   const { data, error } = await supabase
@@ -49,9 +49,7 @@ export async function getProfileByUsername(username: string): Promise<PublicProf
 
 /** Everything except username — that goes through the rate-limited RPC. */
 export async function updateProfile(update: ProfileUpdate): Promise<void> {
-  const { data: userData } = await supabase.auth.getUser();
-  const userId = userData.user?.id;
-  if (!userId) throw new Error('Not signed in');
+  const userId = await requireUserId();
 
   const { error } = await supabase.from('profiles').update(update).eq('id', userId);
   if (error) throw error;

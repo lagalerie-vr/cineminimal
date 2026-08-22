@@ -1,5 +1,6 @@
 import React from 'react';
 import { getTrending, getPopular, getNowPlaying, getAnimeMix } from '@/lib/tmdb';
+import ContinueWatching from '@/components/ContinueWatching';
 import HeroSection from '@/components/HeroSection';
 import ContentRow from '@/components/ContentRow';
 
@@ -32,6 +33,8 @@ export default async function Home() {
       <HeroSection items={heroQueue} />
       
       <div className="container mx-auto px-6 relative z-10 space-y-16">
+        <ContinueWatching />
+
         <ContentRow 
           title="Trending Now" 
           items={trending.slice(1)} 

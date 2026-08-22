@@ -1,6 +1,7 @@
 import React from 'react';
 import { searchTMDB } from '@/lib/tmdb';
 import MovieCard from '@/components/MovieCard';
+import UserSearchResults from '@/components/UserSearchResults';
 import { Search as SearchIcon } from 'lucide-react';
 
 export default async function SearchPage({ searchParams }: { searchParams: Promise<{ q: string }> }) {
@@ -25,6 +26,8 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
             <p className="text-muted text-sm">Showing results for "{query}"</p>
           </div>
         </div>
+
+        <UserSearchResults query={query} />
 
         {results.length > 0 ? (
           <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-6">

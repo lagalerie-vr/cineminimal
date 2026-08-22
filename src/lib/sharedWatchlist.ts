@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { requireUserId } from './session';
 
 export interface SharedItem {
   id: string;
@@ -12,13 +13,37 @@ export interface SharedItem {
   added_by: string;
   added_by_username: string;
   added_by_display_name: string | null;
+  vote_count: number;
+  i_voted: boolean;
 }
 
 /** The list you share with one friend. Pair ordering is handled server-side. */
 export async function getSharedWatchlist(friendId: string): Promise<SharedItem[]> {
   const { data, error } = await supabase.rpc('get_shared_watchlist', { friend_id: friendId });
   if (error) throw error;
-  return (data ?? []) as SharedItem[];
+  return ((data ?? []) as any[]).map((r) => ({
+    ...r,
+    vote_count: Number(r.vote_count ?? 0),
+    i_voted: Boolean(r.i_voted),
+  }));
+}
+
+/** One vote per person per item — "what should we watch next". */
+export async function setVote(itemId: string, voted: boolean): Promise<void> {
+  const userId = await requireUserId();
+  if (voted) {
+    const { error } = await supabase
+      .from('shared_watchlist_votes')
+      .upsert({ item_id: itemId, user_id: userId }, { onConflict: 'item_id,user_id' });
+    if (error) throw error;
+  } else {
+    const { error } = await supabase
+      .from('shared_watchlist_votes')
+      .delete()
+      .eq('item_id', itemId)
+      .eq('user_id', userId);
+    if (error) throw error;
+  }
 }
 
 /** Pending counts keyed by friend id, for badges. */

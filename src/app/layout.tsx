@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import Navbar from "@/components/Navbar";
-import WatchingDock from "@/components/WatchingDock";
+import DockBar from "@/components/DockBar";
 import { AuthProvider } from "@/components/AuthProvider";
 
 const geistSans = Geist({
@@ -69,7 +69,7 @@ export default function RootLayout({
           {/* Floating friends-watching dock. Renders nothing when signed
               out or when nobody is watching, so it never occupies a
               corner of every page for no reason. */}
-          <WatchingDock />
+          <DockBar />
         </AuthProvider>
       </body>
     </html>

@@ -9,7 +9,9 @@ import AccountSettings from './AccountSettings';
 import PostComposer from './PostComposer';
 import PostFeed from './PostFeed';
 import SharedWatchlist from './SharedWatchlist';
+import TasteMatch from './TasteMatch';
 import FriendRequestButton, { type RelationshipStatus } from './FriendRequestButton';
+import MessageButton from './MessageButton';
 import { getMyProfile, getProfileByUsername, updateProfile, setUsername, type MyProfile } from '@/lib/profile';
 import {
   isUsernameAvailable,
@@ -301,12 +303,19 @@ const ProfileView = ({ username: routeUsername }: ProfileViewProps) => {
               </div>
             ) : (
               user && (
-                <FriendRequestButton
-                  profileId={profile.id}
-                  status={relationship.status}
-                  requestId={relationship.requestId}
-                  onChanged={load}
-                />
+                <div className="flex items-center gap-2">
+                  {/* Messaging is friends-only server-side, so only offer
+                      it once the friendship actually exists. */}
+                  {relationship.status === 'friends' && (
+                    <MessageButton userId={profile.id} />
+                  )}
+                  <FriendRequestButton
+                    profileId={profile.id}
+                    status={relationship.status}
+                    requestId={relationship.requestId}
+                    onChanged={load}
+                  />
+                </div>
               )
             )
           }
@@ -423,6 +432,13 @@ const ProfileView = ({ username: routeUsername }: ProfileViewProps) => {
 
         {/* Only meaningful between friends — RLS would return an empty
             list to anyone else anyway. */}
+        {!isOwner && relationship.status === 'friends' && (
+          <TasteMatch
+            friendId={profile.id}
+            friendName={profile.display_name || profile.username}
+          />
+        )}
+
         {!isOwner && relationship.status === 'friends' && (
           <div className="space-y-4">
             <h2 className="text-xl font-bold text-white">

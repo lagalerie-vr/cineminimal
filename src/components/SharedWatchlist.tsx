@@ -4,13 +4,15 @@ import React, { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { getImageUrl } from '@/lib/imageUrl';
+import UserLink from './UserLink';
 import {
   getSharedWatchlist,
   setSharedItemStatus,
   removeSharedItem,
+  setVote,
   type SharedItem,
 } from '@/lib/sharedWatchlist';
-import { Loader2, Check, RotateCcw, Trash2, AlertCircle, Bookmark } from 'lucide-react';
+import { Loader2, Check, RotateCcw, Trash2, AlertCircle, Bookmark, ArrowBigUp } from 'lucide-react';
 
 interface SharedWatchlistProps {
   friendId: string;
@@ -50,6 +52,24 @@ const SharedWatchlist = ({ friendId, friendName }: SharedWatchlistProps) => {
       load();
     } finally {
       setBusyId(null);
+    }
+  };
+
+  const toggleVote = async (item: SharedItem) => {
+    const next = !item.i_voted;
+    // Optimistic; the list re-sorts by votes on the next load.
+    setItems((prev) =>
+      prev.map((i) =>
+        i.id === item.id
+          ? { ...i, i_voted: next, vote_count: i.vote_count + (next ? 1 : -1) }
+          : i
+      )
+    );
+    try {
+      await setVote(item.id, next);
+    } catch (err: any) {
+      setError(err?.message ?? 'Could not register that vote.');
+      load();
     }
   };
 
@@ -107,12 +127,30 @@ const SharedWatchlist = ({ friendId, friendName }: SharedWatchlistProps) => {
           </p>
           <p className="text-[11px] text-muted truncate">
             {item.media_type === 'tv' ? 'TV Series' : 'Movie'} · added by{' '}
-            {item.added_by_display_name || `@${item.added_by_username}`}
+            <UserLink username={item.added_by_username} nested className="hover:text-accent">
+              {item.added_by_display_name || `@${item.added_by_username}`}
+            </UserLink>
           </p>
         </div>
       </Link>
 
       <div className="flex items-center gap-1 shrink-0">
+        {/* Votes only matter for things not yet watched. */}
+        {item.status === 'pending' && (
+          <button
+            onClick={() => toggleVote(item)}
+            className={`flex flex-col items-center justify-center w-9 py-1 rounded-xl border transition-colors ${
+              item.i_voted
+                ? 'bg-accent/10 border-accent/30 text-accent'
+                : 'bg-white/5 border-white/10 text-white/40 hover:text-white'
+            }`}
+            title={item.i_voted ? 'Remove your vote' : 'Vote to watch this next'}
+          >
+            <ArrowBigUp size={15} className={item.i_voted ? 'fill-current' : ''} />
+            <span className="text-[10px] font-bold leading-none">{item.vote_count}</span>
+          </button>
+        )}
+
         <button
           onClick={() => toggleWatched(item)}
           disabled={busyId === item.id}
@@ -164,7 +202,7 @@ const SharedWatchlist = ({ friendId, friendName }: SharedWatchlistProps) => {
           {pending.length > 0 && (
             <div className="space-y-2">
               <p className="text-[10px] font-bold text-white/40 uppercase tracking-widest px-1">
-                To watch ({pending.length})
+                To watch ({pending.length}) · most voted first
               </p>
               {pending.map(row)}
             </div>

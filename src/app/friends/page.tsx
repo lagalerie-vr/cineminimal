@@ -5,10 +5,12 @@ import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { useAuth } from '@/components/AuthProvider';
 import FriendAvatar from '@/components/FriendAvatar';
+import UserLink from '@/components/UserLink';
 import FriendRequestButton, { type RelationshipStatus } from '@/components/FriendRequestButton';
 import PostComposer from '@/components/PostComposer';
 import PostFeed from '@/components/PostFeed';
 import WatchingNow from '@/components/WatchingNow';
+import WeeklyDigest from '@/components/WeeklyDigest';
 import ChannelList from '@/components/ChannelList';
 import {
   getFriends,
@@ -21,19 +23,11 @@ import {
   type PendingRequest,
   type PublicProfile,
 } from '@/lib/friends';
-import {
-  Users,
-  Loader2,
-  ArrowLeft,
-  Search,
-  Link2,
-  Copy,
-  Check,
-  AlertCircle,
-  MessageSquare,
-  UserPlus,
-  Hash,
-} from 'lucide-react';
+import { Users, Loader2, Search, Link2, Copy, Check, AlertCircle, MessageSquare, UserPlus, Hash } from 'lucide-react';
+import PageShell from '@/components/ui/PageShell';
+import EmptyState from '@/components/ui/EmptyState';
+import TabStrip from '@/components/ui/TabStrip';
+import { PageSpinner, SignInPrompt } from '@/components/ui/AuthGate';
 
 type Tab = 'feed' | 'people' | 'channels';
 
@@ -128,98 +122,46 @@ function FriendsPageInner() {
     }
   };
 
-  if (authLoading || loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="animate-spin text-accent" size={40} />
-      </div>
-    );
-  }
+  if (authLoading || loading) return <PageSpinner />;
 
   if (!user) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center space-y-6 px-6">
-        <Users size={64} className="text-white/10" />
-        <div className="text-center space-y-2">
-          <h1 className="text-2xl font-bold">Watch with friends</h1>
-          <p className="text-muted max-w-sm">
-            Sign in to add friends, see what they&apos;re watching, and build shared watchlists.
-          </p>
-        </div>
-        <Link
-          href="/login?redirect=/friends"
-          className="bg-accent text-white px-8 py-3 rounded-2xl font-bold shadow-xl shadow-accent/20 hover:scale-105 transition-all"
-        >
-          Sign In Now
-        </Link>
-      </div>
+      <SignInPrompt
+        icon={Users}
+        title="Watch with friends"
+        body="Sign in to add friends, see what they're watching, and build shared watchlists."
+        redirectTo="/friends"
+      />
     );
   }
 
   return (
-    <div className="pt-32 pb-20 min-h-screen">
-      <div className="container mx-auto px-6 space-y-12">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-4">
-            <div className="w-12 h-12 bg-accent/20 border border-accent/20 rounded-2xl flex items-center justify-center text-accent">
-              <Users size={24} />
-            </div>
-            <div>
-              <h1 className="text-3xl font-bold text-white tracking-tight">Friends</h1>
-              <p className="text-muted text-sm">
-                {friends.length} {friends.length === 1 ? 'friend' : 'friends'}
-                {incoming.length > 0 && ` · ${incoming.length} pending`}
-              </p>
-            </div>
-          </div>
-          <Link
-            href="/"
-            className="hidden md:flex items-center space-x-2 text-muted hover:text-white transition-colors text-sm font-medium"
-          >
-            <ArrowLeft size={16} />
-            <span>Back to Home</span>
-          </Link>
-        </div>
-
-        {/* Tabs. Kept in the URL so the feed/people split is linkable and
-            survives a refresh. */}
-        <div className="flex items-center gap-2 p-1 bg-black/20 rounded-2xl w-fit">
-          <Link
-            href="/friends?tab=feed"
-            scroll={false}
-            className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-widest transition-all ${
-              tab === 'feed' ? 'bg-accent text-white shadow-lg' : 'text-white/40 hover:text-white'
-            }`}
-          >
-            <MessageSquare size={14} />
-            <span>Feed</span>
-          </Link>
-          <Link
-            href="/friends?tab=channels"
-            scroll={false}
-            className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-widest transition-all ${
-              tab === 'channels' ? 'bg-accent text-white shadow-lg' : 'text-white/40 hover:text-white'
-            }`}
-          >
-            <Hash size={14} />
-            <span>Channels</span>
-          </Link>
-          <Link
-            href="/friends?tab=people"
-            scroll={false}
-            className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-widest transition-all ${
-              tab === 'people' ? 'bg-accent text-white shadow-lg' : 'text-white/40 hover:text-white'
-            }`}
-          >
-            <UserPlus size={14} />
-            <span>People</span>
-            {incoming.length > 0 && (
-              <span className="min-w-[18px] h-[18px] px-1 rounded-full bg-white/20 text-white text-[10px] flex items-center justify-center">
-                {incoming.length}
-              </span>
-            )}
-          </Link>
-        </div>
+    <PageShell
+      icon={Users}
+      title="Friends"
+      width="wide"
+      subtitle={
+        <>
+          {friends.length} {friends.length === 1 ? 'friend' : 'friends'}
+          {incoming.length > 0 && ` · ${incoming.length} pending`}
+        </>
+      }
+    >
+        {/* URL-backed so the tab survives a refresh and can be linked. */}
+        <TabStrip
+          active={tab}
+          tabs={[
+            { key: 'feed', label: 'Feed', icon: MessageSquare, href: '/friends?tab=feed' },
+            { key: 'channels', label: 'Channels', icon: Hash, href: '/friends?tab=channels' },
+            {
+              key: 'people',
+              label: 'People',
+              icon: UserPlus,
+              href: '/friends?tab=people',
+              badge: incoming.length,
+            },
+          ]}
+        />
 
         {error && (
           <div className="bg-red-500/10 border border-red-500/20 rounded-2xl p-4 flex items-start space-x-3 text-red-400 text-sm">
@@ -238,8 +180,9 @@ function FriendsPageInner() {
                 emptyBody="Post something, or add friends to see what they're watching."
               />
             </div>
-            <div className="lg:sticky lg:top-28">
+            <div className="lg:sticky lg:top-28 space-y-4">
               <WatchingNow />
+              <WeeklyDigest />
             </div>
           </div>
         )}
@@ -371,23 +314,16 @@ function FriendsPageInner() {
               ))}
             </div>
           ) : (
-            <div className="py-20 text-center space-y-6">
-              <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-white/5 border border-white/10 text-white/20">
-                <Users size={32} />
-              </div>
-              <div className="space-y-2">
-                <h3 className="text-xl font-bold">No friends yet</h3>
-                <p className="text-muted max-w-xs mx-auto text-sm">
-                  Search for a username above, or share your invite link to connect instantly.
-                </p>
-              </div>
-            </div>
+            <EmptyState
+              icon={Users}
+              title="No friends yet"
+              body="Search for a username above, or share your invite link to connect instantly."
+            />
           )}
         </div>
           </div>
         )}
-      </div>
-    </div>
+    </PageShell>
   );
 }
 
@@ -420,15 +356,15 @@ function PersonRow({
 }) {
   return (
     <div className="flex items-center justify-between gap-4 p-4 rounded-2xl bg-white/[0.02] border border-white/5 hover:border-white/10 transition-colors">
-      <div className="flex items-center gap-3 min-w-0">
+      <UserLink username={profile.username} className="flex items-center gap-3 min-w-0">
         <FriendAvatar profile={profile} />
         <div className="min-w-0">
-          <p className="text-sm font-bold text-white truncate">
+          <p className="text-sm font-bold text-white truncate hover:text-accent transition-colors">
             {profile.display_name || profile.username}
           </p>
           <p className="text-xs text-muted truncate">@{profile.username}</p>
         </div>
-      </div>
+      </UserLink>
       <FriendRequestButton
         profileId={profile.id}
         status={status}

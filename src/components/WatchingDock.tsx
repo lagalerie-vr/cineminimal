@@ -1,26 +1,34 @@
 'use client';
 
-import React, { useState } from 'react';
+import React from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useAuth } from './AuthProvider';
 import { useFriendsWatching, WatchingRow } from './WatchingNow';
+import IncognitoToggle from './IncognitoToggle';
 import { Radio, X } from 'lucide-react';
 
+interface WatchingDockProps {
+  open: boolean;
+  onToggle: () => void;
+  onClose: () => void;
+}
+
 /**
- * Floating "friends are watching" dock, bottom-right.
+ * Floating "friends are watching" dock.
  *
  * Hidden entirely when nobody is watching, so it never sits there as an
- * empty box taking up a corner of every page.
+ * empty box taking up a corner of every page. Open state is owned by
+ * DockBar so only one panel can be open at a time — two 300px panels
+ * side by side don't fit a phone.
  */
-const WatchingDock = () => {
+const WatchingDock = ({ open, onToggle, onClose }: WatchingDockProps) => {
   const { user } = useAuth();
   const { watching } = useFriendsWatching();
-  const [open, setOpen] = useState(false);
 
   if (!user || watching.length === 0) return null;
 
   return (
-    <div className="fixed bottom-6 right-6 z-[60] flex flex-col items-end gap-3">
+    <div className="flex flex-col items-end">
       <AnimatePresence>
         {open && (
           <motion.div
@@ -28,7 +36,7 @@ const WatchingDock = () => {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 12, scale: 0.96 }}
             transition={{ duration: 0.15 }}
-            className="w-72 max-w-[calc(100vw-3rem)] rounded-3xl bg-card border border-white/10 shadow-2xl overflow-hidden"
+            className="absolute bottom-full right-0 mb-3 w-72 max-w-[calc(100vw-3rem)] rounded-3xl bg-card border border-white/10 shadow-2xl overflow-hidden"
           >
             <div className="flex items-center justify-between px-4 py-3 border-b border-white/5">
               <p className="flex items-center gap-2 text-xs font-bold text-white">
@@ -36,11 +44,14 @@ const WatchingDock = () => {
                 <span>Watching now</span>
               </p>
               <button
-                onClick={() => setOpen(false)}
+                onClick={onClose}
                 className="p-1 rounded-lg text-white/40 hover:text-white hover:bg-white/5 transition-colors"
               >
                 <X size={14} />
               </button>
+            </div>
+            <div className="px-3 pt-3">
+              <IncognitoToggle compact />
             </div>
             <div className="p-2 max-h-80 overflow-y-auto">
               {watching.map((w) => (
@@ -52,7 +63,7 @@ const WatchingDock = () => {
       </AnimatePresence>
 
       <button
-        onClick={() => setOpen((v) => !v)}
+        onClick={onToggle}
         className="flex items-center gap-2 pl-3 pr-4 py-2.5 rounded-full bg-accent text-white shadow-2xl shadow-accent/30 hover:scale-105 active:scale-95 transition-transform"
         title={`${watching.length} friend${watching.length === 1 ? '' : 's'} watching`}
       >
