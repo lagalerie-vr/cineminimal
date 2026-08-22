@@ -117,9 +117,16 @@ export async function discoverContent(type: 'movie' | 'tv', filters: Record<stri
     tmdbParams['first_air_date.gte'] = '1960-01-01';
   }
 
-  // Ensure items have posters
-  tmdbParams['with_runtime.gte'] = '40'; // Filter out shorts/clips
-  
+  // Movies only. For TV, with_runtime filters on EPISODE length, not the
+  // series — so a 40-minute floor silently deletes most of television:
+  // anime episodes run ~24 minutes, and this alone cut anime series from
+  // 1031 results to 4. Shorts are a movie problem; vote_count/popularity
+  // already gate quality for TV.
+  if (type === 'movie') {
+    tmdbParams['with_runtime.gte'] = '40'; // Filter out shorts/clips
+  }
+
+
   // Handle Age Rating (Certification)
   if (filters.certification) {
     tmdbParams.certification_country = 'US';
@@ -142,11 +149,20 @@ export async function getAnimeMix() {
     discoverContent('movie', { with_genres: '16', with_original_language: 'ja' })
   ]);
 
-  // Combine and sort by popularity
-  const combined = [...tvResults.results, ...movieResults.results]
-    .sort((a, b) => b.popularity - a.popularity);
+  // Interleave rather than sorting the union by popularity: anime films
+  // tend to out-score series on that metric, so a straight sort can fill
+  // the whole first page with movies and make it look like there are no
+  // shows at all. Each list stays popularity-ordered internally.
+  const tv = [...tvResults.results].sort((a, b) => b.popularity - a.popularity);
+  const movies = [...movieResults.results].sort((a, b) => b.popularity - a.popularity);
 
-  return { results: combined.slice(0, 20) };
+  const combined: any[] = [];
+  for (let i = 0; i < Math.max(tv.length, movies.length) && combined.length < 20; i++) {
+    if (tv[i]) combined.push(tv[i]);
+    if (movies[i] && combined.length < 20) combined.push(movies[i]);
+  }
+
+  return { results: combined };
 }
 
 export async function getPersonDetails(id: string) {

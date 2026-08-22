@@ -6,6 +6,7 @@ import { Loader2, RefreshCw, Server, PlayCircle, Video as VideoIcon, Film, Tv, P
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from './AuthProvider';
 import { supabase } from '@/lib/supabase';
+import { upsertNowWatching, clearNowWatching, HEARTBEAT_MS } from '@/lib/presence';
 import Image from 'next/image';
 
 interface VideoPlayerProps {
@@ -24,14 +25,13 @@ const PROVIDERS = [
   // Default. Verified live: resolves the correct title for both movies and
   // TV episodes and plays inline (unlike some alternatives that are actually
   // landing pages linking out to a separate player).
-  { name: 'vidlink', url: 'https://vidlink.pro', type: 'tmdb' },
   // videasy is currently returning 502s from its own upstream (outage on
   // their end, unrelated to this app) — bumped from default so new visitors
   // don't land on a dead player. Left in the list since it's still the only
   // provider with real progress tracking and reliably English audio; move it
   // back to the front once it's confirmed stable again.
   { name: 'videasy', url: 'https://player.videasy.net', type: 'tmdb' },
-  // vidsrc.sbs's pre-play screen resolves the correct title, but its default
+  { name: 'vidlink', url: 'https://vidlink.pro', type: 'tmdb' },
   // "Pro Multi" backend is an unreliable multi-language aggregator that can
   // fall back to unrelated (often Bollywood) content once you hit play —
   // kept as a fallback, not the default, until that's addressed upstream.
@@ -194,6 +194,38 @@ const VideoPlayer = ({
 
     const timer = setTimeout(recordHistory, 10000);
     return () => clearTimeout(timer);
+  }, [user, id, type, season, episode, isVideoMode, posterPath, title]);
+
+  // Live presence heartbeat, so friends can see what you're watching.
+  //
+  // Keyed to "this player is open in video mode" rather than actual
+  // play/pause: only one provider reports any playback signal at all (see
+  // the MEDIA_DATA note below), so genuine play state isn't knowable for
+  // the rest. The row carries updated_at and readers apply a staleness
+  // cutoff, which is what stops an abandoned tab showing you as watching
+  // forever.
+  useEffect(() => {
+    if (!user || !isVideoMode || !title) return;
+
+    const beat = () =>
+      upsertNowWatching({
+        mediaType: type,
+        mediaId: id,
+        title,
+        posterPath,
+        season: type === 'tv' ? season : null,
+        episode: type === 'tv' ? episode : null,
+      }).catch(() => {
+        // Presence is best-effort; never let it disrupt playback.
+      });
+
+    beat();
+    const interval = setInterval(beat, HEARTBEAT_MS);
+
+    return () => {
+      clearInterval(interval);
+      clearNowWatching().catch(() => {});
+    };
   }, [user, id, type, season, episode, isVideoMode, posterPath, title]);
 
   // Videasy broadcasts its watch history to the parent once a second. It's

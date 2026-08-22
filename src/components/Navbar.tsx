@@ -3,19 +3,47 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { Search, Film, Tv, Home, User, LogOut, Bookmark, History, Menu, X, Sparkles } from 'lucide-react';
+import { Search, Film, Tv, Home, User, LogOut, Bookmark, History, Menu, X, Sparkles, Users, ShieldCheck } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from './AuthProvider';
+import NotificationBell from './NotificationBell';
+import { getIncomingRequestCount } from '@/lib/friends';
 
 const Navbar = () => {
   const pathname = usePathname();
   const router = useRouter();
-  const { user, signOut } = useAuth();
+  const { user, isAdmin, signOut } = useAuth();
   const [isScrolled, setIsScrolled] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearchExpanded, setIsSearchExpanded] = useState(false);
+  const [pendingRequests, setPendingRequests] = useState(0);
+
+  // Refetched on mount and whenever the tab regains focus — a badge count
+  // doesn't justify a realtime subscription, and coming back to the tab is
+  // when a stale count would actually be noticed.
+  useEffect(() => {
+    if (!user) {
+      setPendingRequests(0);
+      return;
+    }
+    let cancelled = false;
+    const refresh = async () => {
+      try {
+        const count = await getIncomingRequestCount();
+        if (!cancelled) setPendingRequests(count);
+      } catch {
+        // Non-critical; leave the previous count rather than surfacing an error.
+      }
+    };
+    refresh();
+    window.addEventListener('focus', refresh);
+    return () => {
+      cancelled = true;
+      window.removeEventListener('focus', refresh);
+    };
+  }, [user]);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -35,10 +63,13 @@ const Navbar = () => {
   };
 
   const navLinks = [
-    { name: 'Home', href: '/', icon: Home },
-    { name: 'Movies', href: '/movies', icon: Film },
-    { name: 'TV Shows', href: '/tv', icon: Tv },
-    { name: 'Anime', href: '/anime', icon: Sparkles },
+    { name: 'Home', href: '/', icon: Home, badge: 0 },
+    { name: 'Movies', href: '/movies', icon: Film, badge: 0 },
+    { name: 'TV Shows', href: '/tv', icon: Tv, badge: 0 },
+    { name: 'Anime', href: '/anime', icon: Sparkles, badge: 0 },
+    // Signed-in only: the page works signed out, but a nav entry that
+    // leads straight to a sign-in wall isn't worth the space.
+    ...(user ? [{ name: 'Friends', href: '/friends', icon: Users, badge: pendingRequests }] : []),
   ];
 
   return (
@@ -70,6 +101,11 @@ const Navbar = () => {
             >
               <link.icon size={16} />
               <span>{link.name}</span>
+              {link.badge > 0 && (
+                <span className="min-w-[18px] h-[18px] px-1 rounded-full bg-accent text-white text-[10px] font-bold flex items-center justify-center">
+                  {link.badge > 9 ? '9+' : link.badge}
+                </span>
+              )}
             </Link>
           ))}
         </div>
@@ -110,6 +146,7 @@ const Navbar = () => {
           </form>
 
           <div className="flex items-center space-x-4">
+            {user && <NotificationBell />}
             {user ? (
               <div className="relative">
                 <button
@@ -144,6 +181,27 @@ const Navbar = () => {
                           <p className="text-sm font-medium truncate">{user.email}</p>
                         </div>
                         <Link
+                          href="/profile"
+                          onClick={() => setIsProfileOpen(false)}
+                          className="flex items-center space-x-3 px-3 py-2 rounded-xl text-sm hover:bg-white/5 transition-colors text-white/70 hover:text-white"
+                        >
+                          <User size={16} />
+                          <span>Profile</span>
+                        </Link>
+                        <Link
+                          href="/friends"
+                          onClick={() => setIsProfileOpen(false)}
+                          className="flex items-center space-x-3 px-3 py-2 rounded-xl text-sm hover:bg-white/5 transition-colors text-white/70 hover:text-white"
+                        >
+                          <Users size={16} />
+                          <span className="flex-1">Friends</span>
+                          {pendingRequests > 0 && (
+                            <span className="min-w-[18px] h-[18px] px-1 rounded-full bg-accent text-white text-[10px] font-bold flex items-center justify-center">
+                              {pendingRequests > 9 ? '9+' : pendingRequests}
+                            </span>
+                          )}
+                        </Link>
+                        <Link
                           href="/watchlist"
                           onClick={() => setIsProfileOpen(false)}
                           className="flex items-center space-x-3 px-3 py-2 rounded-xl text-sm hover:bg-white/5 transition-colors text-white/70 hover:text-white"
@@ -159,6 +217,16 @@ const Navbar = () => {
                           <History size={16} />
                           <span>History</span>
                         </Link>
+                        {isAdmin && (
+                          <Link
+                            href="/admin"
+                            onClick={() => setIsProfileOpen(false)}
+                            className="flex items-center space-x-3 px-3 py-2 rounded-xl text-sm hover:bg-white/5 transition-colors text-accent"
+                          >
+                            <ShieldCheck size={16} />
+                            <span>Moderation</span>
+                          </Link>
+                        )}
                         <button
                           onClick={() => {
                             signOut();
@@ -214,6 +282,11 @@ const Navbar = () => {
                 >
                   <link.icon size={24} />
                   <span>{link.name}</span>
+                  {link.badge > 0 && (
+                    <span className="min-w-[20px] h-[20px] px-1.5 rounded-full bg-accent text-white text-xs font-bold flex items-center justify-center">
+                      {link.badge > 9 ? '9+' : link.badge}
+                    </span>
+                  )}
                 </Link>
               ))}
             </div>

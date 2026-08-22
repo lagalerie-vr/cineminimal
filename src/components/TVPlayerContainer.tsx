@@ -10,7 +10,9 @@ import MovieCard from './MovieCard';
 import { Star, Calendar, Users, List, Bookmark, ChevronRight, Check } from 'lucide-react';
 import { getImageUrl } from '@/lib/imageUrl';
 import WatchlistButton from './WatchlistButton';
-import ReviewSection from './ReviewSection';
+import RecommendButton from './RecommendButton';
+import WatchRoomButton from './WatchRoomButton';
+import TitleDiscussion from './TitleDiscussion';
 import {
   getLastPosition,
   setLastPosition,
@@ -179,12 +181,26 @@ const TVPlayerContainer = ({ show }: TVPlayerContainerProps) => {
             <div className="space-y-2">
               <div className="flex flex-wrap items-center justify-between gap-6">
                 <h1 className="text-4xl md:text-5xl font-bold text-white">{show.name}</h1>
-                <div className="flex items-center space-x-4">
-                  <WatchlistButton 
-                    id={show.id} 
-                    type="tv" 
-                    title={show.name} 
-                    posterPath={show.poster_path} 
+                <div className="flex items-center gap-3 flex-wrap">
+                  <WatchlistButton
+                    id={show.id}
+                    type="tv"
+                    title={show.name}
+                    posterPath={show.poster_path}
+                  />
+                  <RecommendButton
+                    mediaType="tv"
+                    mediaId={show.id}
+                    title={show.name}
+                    posterPath={show.poster_path}
+                  />
+                  <WatchRoomButton
+                    mediaType="tv"
+                    mediaId={show.id}
+                    title={show.name}
+                    posterPath={show.poster_path}
+                    season={activeSeason}
+                    episode={activeEpisode}
                   />
                 </div>
               </div>
@@ -410,7 +426,15 @@ const TVPlayerContainer = ({ show }: TVPlayerContainerProps) => {
             </div>
 
             {/* Reviews Section */}
-            <ReviewSection reviews={show.reviews.results} />
+            <TitleDiscussion
+              mediaType="tv"
+              mediaId={show.id}
+              title={show.name}
+              posterPath={show.poster_path}
+              season={activeSeason}
+              episode={activeEpisode}
+              reviews={show.reviews.results}
+            />
           </div>
         </div>
 

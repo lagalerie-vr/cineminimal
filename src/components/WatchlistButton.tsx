@@ -33,8 +33,11 @@ const WatchlistButton = ({ id, type, title, posterPath, variant = 'full' }: Watc
         .select('id')
         .eq('user_id', user.id)
         .eq('movie_id', String(id))
-        .single();
-      
+        // maybeSingle, not single: "not in the watchlist" is the normal
+        // case, and single() answers zero rows with an HTTP 406. Every
+        // card on every page was firing a failed request.
+        .maybeSingle();
+
       if (data) setIsInWatchlist(true);
       setLoading(false);
     };

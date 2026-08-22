@@ -8,7 +8,9 @@ import MovieCard from '@/components/MovieCard';
 import FranchiseRow from '@/components/FranchiseRow';
 import { Star, Clock, Calendar, Users, Bookmark, Play, Layers } from 'lucide-react';
 import WatchlistButton from '@/components/WatchlistButton';
-import ReviewSection from '@/components/ReviewSection';
+import RecommendButton from '@/components/RecommendButton';
+import WatchRoomButton from '@/components/WatchRoomButton';
+import TitleDiscussion from '@/components/TitleDiscussion';
 
 export default async function MoviePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -66,12 +68,24 @@ export default async function MoviePage({ params }: { params: Promise<{ id: stri
               <div className="space-y-2">
                 <div className="flex flex-wrap items-center justify-between gap-6">
                   <h1 className="text-4xl md:text-5xl font-bold text-white">{movie.title}</h1>
-                  <div className="flex items-center space-x-4">
-                    <WatchlistButton 
-                      id={movie.id} 
-                      type="movie" 
-                      title={movie.title} 
-                      posterPath={movie.poster_path} 
+                  <div className="flex items-center gap-3 flex-wrap">
+                    <WatchlistButton
+                      id={movie.id}
+                      type="movie"
+                      title={movie.title}
+                      posterPath={movie.poster_path}
+                    />
+                    <RecommendButton
+                      mediaType="movie"
+                      mediaId={movie.id}
+                      title={movie.title}
+                      posterPath={movie.poster_path}
+                    />
+                    <WatchRoomButton
+                      mediaType="movie"
+                      mediaId={movie.id}
+                      title={movie.title}
+                      posterPath={movie.poster_path}
                     />
                   </div>
                 </div>
@@ -172,7 +186,13 @@ export default async function MoviePage({ params }: { params: Promise<{ id: stri
               )}
 
               {/* Reviews Section */}
-              <ReviewSection reviews={movie.reviews.results} />
+              <TitleDiscussion
+                mediaType="movie"
+                mediaId={movie.id}
+                title={movie.title}
+                posterPath={movie.poster_path}
+                reviews={movie.reviews.results}
+              />
             </div>
           </div>
 

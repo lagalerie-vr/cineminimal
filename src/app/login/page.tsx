@@ -1,14 +1,22 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { Suspense, useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { Film, Mail, Lock, ArrowRight, Loader2, AlertCircle } from 'lucide-react';
 import { motion } from 'framer-motion';
 
-export default function LoginPage() {
+/** Only same-origin paths, so ?redirect= can't be used as an open redirect. */
+function safeRedirect(raw: string | null): string {
+  if (!raw || !raw.startsWith('/') || raw.startsWith('//')) return '/';
+  return raw;
+}
+
+function LoginForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const redirectTo = safeRedirect(searchParams.get('redirect'));
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -28,7 +36,7 @@ export default function LoginPage() {
       setError(error.message);
       setLoading(false);
     } else {
-      router.push('/');
+      router.push(redirectTo);
       router.refresh();
     }
   };
@@ -124,10 +132,31 @@ export default function LoginPage() {
 
           <p className="text-center mt-10 text-muted text-sm">
             Don't have an account?{' '}
-            <Link href="/signup" className="text-white font-bold hover:text-accent transition-colors">Sign up for free</Link>
+            <Link
+              href={redirectTo === '/' ? '/signup' : `/signup?redirect=${encodeURIComponent(redirectTo)}`}
+              className="text-white font-bold hover:text-accent transition-colors"
+            >
+              Sign up for free
+            </Link>
           </p>
         </div>
       </motion.div>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  // useSearchParams opts this subtree out of prerendering, so it needs a
+  // Suspense boundary or the build fails on this route.
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen flex items-center justify-center">
+          <Loader2 className="animate-spin text-accent" size={40} />
+        </div>
+      }
+    >
+      <LoginForm />
+    </Suspense>
   );
 }
