@@ -17,6 +17,9 @@ export default async function MoviesPage({
     if (typeof val === 'string') filters[key] = val;
   });
 
+  // TMDB ignores `certification` unless it's scoped to a country.
+  if (filters.certification) filters.certification_country ||= 'US';
+
   const [genres, languages, countries, initialResults, providers] = await Promise.all([
     getGenres('movie'),
     getLanguages(),
@@ -41,6 +44,7 @@ export default async function MoviesPage({
             .filter((p: any) => !p.provider_name.includes('Channel') && !p.provider_name.includes('Add-on'))
             .slice(0, 30)} 
           type="movie"
+          category="movie"
         />
 
         <InfiniteScrollList 

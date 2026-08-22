@@ -7,6 +7,7 @@ import ModalPortal from './ModalPortal';
 import { useAuth } from './AuthProvider';
 import { getFriends, type Friend } from '@/lib/friends';
 import { recommendToFriend } from '@/lib/sharedWatchlist';
+import { getMyGroups, addGroupItem, type WatchlistGroup } from '@/lib/watchlistGroups';
 import { Send, Loader2, Check, X, AlertCircle, Users, Search } from 'lucide-react';
 
 interface RecommendButtonProps {
@@ -26,6 +27,14 @@ const RecommendButton = ({ mediaType, mediaId, title, posterPath }: RecommendBut
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState('');
+
+  const [groups, setGroups] = useState<WatchlistGroup[]>([]);
+
+  // Groups load alongside friends so both targets appear in one list.
+  useEffect(() => {
+    if (!open) return;
+    getMyGroups().then(setGroups).catch(() => setGroups([]));
+  }, [open]);
 
   useEffect(() => {
     if (!open || friends.length > 0) return;
@@ -61,6 +70,24 @@ const RecommendButton = ({ mediaType, mediaId, title, posterPath }: RecommendBut
       setSentTo((prev) => new Set(prev).add(friend.profile.id));
     } catch (err: any) {
       setError(err?.message ?? 'Could not send that recommendation.');
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const sendToGroup = async (group: WatchlistGroup) => {
+    setBusyId(group.id);
+    setError(null);
+    try {
+      await addGroupItem(group.id, {
+        mediaType,
+        mediaId,
+        title,
+        posterPath: posterPath ?? null,
+      });
+      setSentTo((prev) => new Set(prev).add(group.id));
+    } catch (err: any) {
+      setError(err?.message ?? 'Could not add that to the list.');
     } finally {
       setBusyId(null);
     }
@@ -143,7 +170,52 @@ const RecommendButton = ({ mediaType, mediaId, title, posterPath }: RecommendBut
                     No friends match &ldquo;{query.trim()}&rdquo;.
                   </p>
                 ) : (
-                  visible.map((f) => {
+                  <>
+                  {groups.length > 0 && (
+                    <div className="border-b border-white/5">
+                      <p className="px-5 pt-3 pb-1 text-[10px] font-bold text-white/30 uppercase tracking-widest">
+                        Shared lists
+                      </p>
+                      {groups.map((g) => {
+                        const sent = sentTo.has(g.id);
+                        return (
+                          <div
+                            key={g.id}
+                            className="flex items-center gap-3 px-5 py-3"
+                          >
+                            <div className="w-9 h-9 rounded-xl bg-accent/15 border border-accent/20 flex items-center justify-center text-accent shrink-0">
+                              <Users size={16} />
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <p className="text-sm font-bold text-white truncate">{g.name}</p>
+                              <p className="text-xs text-muted truncate">
+                                {g.member_count} members
+                              </p>
+                            </div>
+                            <button
+                              onClick={() => sendToGroup(g)}
+                              disabled={sent || busyId === g.id}
+                              className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all shrink-0 border ${
+                                sent
+                                  ? 'bg-accent/10 border-accent/30 text-accent'
+                                  : 'bg-accent border-accent text-white hover:bg-accent/90 disabled:opacity-40'
+                              }`}
+                            >
+                              {busyId === g.id ? (
+                                <Loader2 className="animate-spin" size={13} />
+                              ) : sent ? (
+                                <Check size={13} />
+                              ) : (
+                                <Send size={13} />
+                              )}
+                              <span>{sent ? 'Added' : 'Add'}</span>
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                  {visible.map((f) => {
                     const sent = sentTo.has(f.profile.id);
                     return (
                       <div
@@ -177,12 +249,13 @@ const RecommendButton = ({ mediaType, mediaId, title, posterPath }: RecommendBut
                         </button>
                       </div>
                     );
-                  })
+                  })}
+                  </>
                 )}
               </div>
 
               <p className="px-5 py-3 text-[11px] text-muted border-t border-white/5">
-                Recommendations land in the watchlist you share with that friend.
+                Pick a shared list, or a friend for the list you two share.
               </p>
             </motion.div>
           </motion.div>

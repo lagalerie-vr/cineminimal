@@ -4,6 +4,7 @@ import "./globals.css";
 import Navbar from "@/components/Navbar";
 import DockBar from "@/components/DockBar";
 import { AuthProvider } from "@/components/AuthProvider";
+import { WatchlistProvider } from "@/components/WatchlistProvider";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -56,20 +57,22 @@ export default function RootLayout({
     >
       <body className="min-h-full flex flex-col font-sans bg-background text-foreground">
         <AuthProvider>
-          <Navbar />
-          <main className="flex-1">
-            {children}
-          </main>
-          <footer className="py-12 border-t border-white/5 mt-20">
-            <div className="container mx-auto px-6 text-center text-muted text-sm">
-              <p>&copy; {new Date().getFullYear()} CineMinimal. All rights reserved.</p>
-              <p className="mt-2 text-xs">Created with &hearts; by Mohamed Elwed</p>
-            </div>
-          </footer>
-          {/* Floating friends-watching dock. Renders nothing when signed
-              out or when nobody is watching, so it never occupies a
-              corner of every page for no reason. */}
-          <DockBar />
+          <WatchlistProvider>
+            <Navbar />
+            <main className="flex-1">
+              {children}
+            </main>
+            <footer className="py-12 border-t border-white/5 mt-20">
+              <div className="container mx-auto px-6 text-center text-muted text-sm">
+                <p>&copy; {new Date().getFullYear()} CineMinimal. All rights reserved.</p>
+                <p className="mt-2 text-xs">Created with &hearts; by Mohamed Elwed</p>
+              </div>
+            </footer>
+            {/* Floating friends-watching dock. Renders nothing when signed
+                out or when nobody is watching, so it never occupies a
+                corner of every page for no reason. */}
+            <DockBar />
+          </WatchlistProvider>
         </AuthProvider>
       </body>
     </html>

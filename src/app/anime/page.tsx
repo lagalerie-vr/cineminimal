@@ -17,9 +17,15 @@ export default async function AnimePage({
     if (typeof val === 'string') filters[key] = val;
   });
 
-  // Base Anime Filters
-  filters.with_genres = '16'; // Animation
+  // Base anime filters. Genre COMBINES with whatever the user picked
+  // rather than replacing it — assigning '16' outright meant every genre
+  // choice on this page silently did nothing. Comma is AND in TMDB.
+  const picked = (filters.with_genres || '').split(',').filter((g) => g && g !== '16');
+  filters.with_genres = ['16', ...picked].join(',');
   filters.with_original_language = 'ja'; // Japanese
+
+  // certification only applies when scoped to a country.
+  if (filters.certification) filters.certification_country ||= 'US';
 
   const [genres, languages, countries, initialResults, providers] = await Promise.all([
     getGenres('tv'),
@@ -44,7 +50,10 @@ export default async function AnimePage({
           providers={providers.results
             .filter((p: any) => !p.provider_name.includes('Channel') && !p.provider_name.includes('Add-on'))
             .slice(0, 30)}
-          type="tv" // Default to TV for filter context
+          // Anime browses the /tv endpoint, but the filter set shown is
+          // anime-specific — language and country are pinned below.
+          type="tv"
+          category="anime"
         />
 
         <InfiniteScrollList 

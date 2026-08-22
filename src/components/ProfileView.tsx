@@ -12,6 +12,7 @@ import SharedWatchlist from './SharedWatchlist';
 import TasteMatch from './TasteMatch';
 import FriendRequestButton, { type RelationshipStatus } from './FriendRequestButton';
 import MessageButton from './MessageButton';
+import PublicWatchlist from './PublicWatchlist';
 import { getMyProfile, getProfileByUsername, updateProfile, setUsername, type MyProfile } from '@/lib/profile';
 import {
   isUsernameAvailable,
@@ -429,6 +430,10 @@ const ProfileView = ({ username: routeUsername }: ProfileViewProps) => {
             </div>
           </div>
         )}
+
+        {/* Shows only when they've made the list public; the RPC returns
+            nothing otherwise, so this collapses to null on its own. */}
+        {!isOwner && <PublicWatchlist ownerId={profile.id} />}
 
         {/* Only meaningful between friends — RLS would return an empty
             list to anyone else anyway. */}
