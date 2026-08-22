@@ -198,7 +198,9 @@ const PostComposer = ({
       <input
         ref={fileRef}
         type="file"
-        accept="image/jpeg,image/png,image/webp"
+        // Same reasoning as the profile uploads: everything is re-encoded
+        // to WebP before upload, so the picker shouldn't hide HEIC photos.
+        accept="image/*"
         onChange={(e) => attachFile(e.target.files?.[0])}
         className="hidden"
       />

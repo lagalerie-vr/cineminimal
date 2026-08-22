@@ -61,9 +61,15 @@ function siteOrigin(): string | null {
   }
 }
 
-const linkClass = 'text-accent underline underline-offset-2 hover:no-underline break-words';
+const LINK_BASE = 'underline underline-offset-2 hover:no-underline break-words';
 
-export function renderRichText(text: string): React.ReactNode[] {
+/**
+ * `onAccent` is for text sitting on the accent fill — your own chat
+ * bubbles. There the usual accent-coloured link is the same colour as
+ * the background, so it reads as an invisible gap in the sentence.
+ */
+export function renderRichText(text: string, onAccent = false): React.ReactNode[] {
+  const linkClass = `${LINK_BASE} ${onAccent ? 'text-white font-semibold' : 'text-accent'}`;
   if (!text) return [];
 
   const origin = siteOrigin();
@@ -151,6 +157,8 @@ export function renderRichText(text: string): React.ReactNode[] {
 }
 
 /** Drop-in for a <p> that used to render `{body}` directly. */
-export const RichText = ({ text }: { text: string }) => <>{renderRichText(text)}</>;
+export const RichText = ({ text, onAccent = false }: { text: string; onAccent?: boolean }) => (
+  <>{renderRichText(text, onAccent)}</>
+);
 
 export default RichText;

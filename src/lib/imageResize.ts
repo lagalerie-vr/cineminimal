@@ -26,26 +26,53 @@ const PRESETS: Record<ResizeMode, Preset> = {
   post: { aspect: null, maxWidth: 1600, maxHeight: 1600, quality: 0.82 },
 };
 
-/** Matches the buckets' allowed_mime_types. */
-const ACCEPTED = ['image/jpeg', 'image/png', 'image/webp'];
+/**
+ * Formats we know every target browser can decode.
+ *
+ * Not a hard allowlist any more: everything is re-encoded to WebP before
+ * upload, so the buckets' own MIME rules only ever see the output. That
+ * means anything the browser can decode is fine — notably HEIC, which is
+ * what iPhones produce by default and which was previously unselectable.
+ */
+const KNOWN_GOOD = ['image/jpeg', 'image/png', 'image/webp'];
 
 /** Rejected before decoding, so a huge file errors instantly instead of OOMing. */
 const MAX_INPUT_BYTES = 10 * 1024 * 1024;
 
 export function validateImageFile(file: File): string | null {
-  if (!file.type.startsWith('image/')) return 'That file is not an image.';
-  if (!ACCEPTED.includes(file.type)) return 'Use a JPEG, PNG or WebP image.';
+  // Some pickers report an empty type for formats they don't recognise,
+  // so an empty string is allowed through to the decoder rather than
+  // rejected outright.
+  if (file.type && !file.type.startsWith('image/')) return 'That file is not an image.';
   if (file.size > MAX_INPUT_BYTES) return 'That image is larger than 10MB.';
   return null;
 }
 
+/** True for formats we're confident about; others are attempted anyway. */
+export function isKnownGoodImage(file: File): boolean {
+  return KNOWN_GOOD.includes(file.type);
+}
+
 type Source = ImageBitmap | HTMLImageElement;
+
+/** Names the format in the failure, so the message is actionable. */
+function unsupported(file: File): Error {
+  const label = (file.type || file.name.split('.').pop() || 'that format').replace('image/', '');
+  return new Error(
+    `Your browser can't read ${label.toUpperCase()} images. Convert it to JPEG or PNG and try again.`
+  );
+}
 
 async function decode(file: File): Promise<Source> {
   if (typeof createImageBitmap === 'function') {
-    // imageOrientation: 'from-image' applies the EXIF rotation. Without it,
-    // photos taken in portrait on a phone come out sideways.
-    return createImageBitmap(file, { imageOrientation: 'from-image' });
+    try {
+      // imageOrientation: 'from-image' applies the EXIF rotation. Without it,
+      // photos taken in portrait on a phone come out sideways.
+      return await createImageBitmap(file, { imageOrientation: 'from-image' });
+    } catch {
+      // Safari decodes HEIC where Chrome and Firefox don't, so fall through
+      // to the <img> path before giving up on the file.
+    }
   }
 
   return new Promise<HTMLImageElement>((resolve, reject) => {
@@ -57,7 +84,7 @@ async function decode(file: File): Promise<Source> {
     };
     img.onerror = () => {
       URL.revokeObjectURL(url);
-      reject(new Error('Could not read that image.'));
+      reject(unsupported(file));
     };
     img.src = url;
   });

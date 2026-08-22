@@ -259,7 +259,7 @@ const DmThreadView = ({ thread, myId, onBack, onRead, variant = 'page' }: DmThre
 
                       {m.body && (
                         <p className="text-sm break-words whitespace-pre-wrap">
-                          <RichText text={m.body} />
+                          <RichText text={m.body} onAccent={mine} />
                         </p>
                       )}
                       <p

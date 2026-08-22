@@ -112,7 +112,9 @@ const ImageUploadField = ({
       <input
         ref={inputRef}
         type="file"
-        accept="image/jpeg,image/png,image/webp"
+        // image/* rather than a short list: HEIC photos from an iPhone were
+        // greyed out in the picker, which looks like the button doing nothing.
+        accept="image/*"
         onChange={(e) => handleFile(e.target.files?.[0])}
         className="hidden"
       />
