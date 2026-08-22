@@ -20,6 +20,22 @@ export interface DmMessage {
   sender_id: string;
   body: string;
   created_at: string;
+  /** A shared movie or show. Null on an ordinary text message. */
+  media_type: 'movie' | 'tv' | null;
+  media_id: string | null;
+  media_title: string | null;
+  poster_path: string | null;
+  season: number | null;
+  episode: number | null;
+}
+
+export interface DmAttachment {
+  type: 'movie' | 'tv';
+  id: string | number;
+  title: string;
+  posterPath?: string | null;
+  season?: number | null;
+  episode?: number | null;
 }
 
 export interface DmCursor {
@@ -63,15 +79,39 @@ export async function getMessages(
   return (data ?? []) as DmMessage[];
 }
 
-export async function sendMessage(threadId: string, body: string): Promise<void> {
+export async function sendMessage(
+  threadId: string,
+  body: string,
+  attachment?: DmAttachment | null
+): Promise<void> {
   const senderId = await requireUserId();
   const trimmed = body.trim();
-  if (!trimmed) return;
+  // A title on its own is a valid message; an empty one still isn't.
+  if (!trimmed && !attachment) return;
 
-  const { error } = await supabase
-    .from('dm_messages')
-    .insert({ thread_id: threadId, sender_id: senderId, body: trimmed });
+  const { error } = await supabase.from('dm_messages').insert({
+    thread_id: threadId,
+    sender_id: senderId,
+    body: trimmed,
+    media_type: attachment?.type ?? null,
+    media_id: attachment ? String(attachment.id) : null,
+    media_title: attachment?.title ?? null,
+    poster_path: attachment?.posterPath ?? null,
+    season: attachment?.season ?? null,
+    episode: attachment?.episode ?? null,
+  });
   if (error) throw error;
+}
+
+/** Opens the thread with someone and sends them a title in one step. */
+export async function shareTitle(
+  friendId: string,
+  attachment: DmAttachment,
+  note = ''
+): Promise<string> {
+  const threadId = await openThread(friendId);
+  await sendMessage(threadId, note, attachment);
+  return threadId;
 }
 
 export async function markRead(threadId: string): Promise<void> {

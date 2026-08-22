@@ -6,6 +6,7 @@ import Image from 'next/image';
 import FriendAvatar from './FriendAvatar';
 import PostReactions from './PostReactions';
 import PostComments from './PostComments';
+import RichText from '@/lib/richText';
 import { useAuth } from './AuthProvider';
 import { getImageUrl } from '@/lib/imageUrl';
 import {
@@ -62,7 +63,7 @@ const RepostSourceCard = ({ source }: { source: RepostSource }) => (
 
       {source.body && (
         <p className="text-white/70 text-sm leading-relaxed whitespace-pre-line break-words line-clamp-4">
-          {source.body}
+          <RichText text={source.body} />
         </p>
       )}
 
@@ -314,7 +315,7 @@ const PostCard = ({ post, onChanged, onDeleted }: PostCardProps) => {
       ) : post.body ? (
         <div className="space-y-2">
           <p className="text-white/80 text-sm leading-relaxed whitespace-pre-line break-words">
-            {shownBody}
+            <RichText text={shownBody} />
           </p>
           {isLong && (
             <button

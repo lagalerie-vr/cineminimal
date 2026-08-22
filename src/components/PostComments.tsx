@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { AnimatePresence, motion } from 'framer-motion';
 import FriendAvatar from './FriendAvatar';
 import { useAuth } from './AuthProvider';
+import RichText from '@/lib/richText';
 import {
   getComments,
   addComment,
@@ -192,7 +193,7 @@ const PostComments = ({ postId, postOwnerId, onCountChange }: PostCommentsProps)
                 </div>
               ) : (
                 <p className="text-sm text-white/80 leading-relaxed whitespace-pre-line break-words">
-                  {c.body}
+                  <RichText text={c.body} />
                 </p>
               )}
             </div>

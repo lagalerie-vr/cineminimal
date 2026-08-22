@@ -9,6 +9,7 @@ import FranchiseRow from '@/components/FranchiseRow';
 import { Star, Clock, Calendar, Users, Bookmark, Play, Layers } from 'lucide-react';
 import WatchlistButton from '@/components/WatchlistButton';
 import RecommendButton from '@/components/RecommendButton';
+import ShareTitleButton from '@/components/ShareTitleButton';
 import WatchRoomButton from '@/components/WatchRoomButton';
 import TitleDiscussion from '@/components/TitleDiscussion';
 
@@ -76,6 +77,12 @@ export default async function MoviePage({ params }: { params: Promise<{ id: stri
                       posterPath={movie.poster_path}
                     />
                     <RecommendButton
+                      mediaType="movie"
+                      mediaId={movie.id}
+                      title={movie.title}
+                      posterPath={movie.poster_path}
+                    />
+                    <ShareTitleButton
                       mediaType="movie"
                       mediaId={movie.id}
                       title={movie.title}

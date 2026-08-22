@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { Search, Film, Tv, Home, User, LogOut, Bookmark, History, Menu, X, Sparkles, Users, ShieldCheck, MessageCircle } from 'lucide-react';
+import { Search, Film, Tv, Home, User, LogOut, Bookmark, History, Menu, X, Sparkles, Users, ShieldCheck, MessageCircle, Clapperboard, ChevronDown } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from './AuthProvider';
 import NotificationBell from './NotificationBell';
@@ -21,6 +21,7 @@ const Navbar = () => {
   const [isSearchExpanded, setIsSearchExpanded] = useState(false);
   const [pendingRequests, setPendingRequests] = useState(0);
   const [unreadDms, setUnreadDms] = useState(0);
+  const [isWatchOpen, setIsWatchOpen] = useState(false);
 
   // Refetched on mount and whenever the tab regains focus — a badge count
   // doesn't justify a realtime subscription, and coming back to the tab is
@@ -90,16 +91,24 @@ const Navbar = () => {
     }
   };
 
+  // The three browse surfaces live under one "Watch" menu — they're the
+  // same activity split by category, and three top-level entries crowded
+  // out everything else.
+  const watchLinks = [
+    { name: 'Movies', href: '/movies', icon: Film, desc: 'Feature films' },
+    { name: 'TV Shows', href: '/tv', icon: Tv, desc: 'Series and episodes' },
+    { name: 'Anime', href: '/anime', icon: Sparkles, desc: 'Japanese animation' },
+  ];
+
   const navLinks = [
     { name: 'Home', href: '/', icon: Home, badge: 0 },
-    { name: 'Movies', href: '/movies', icon: Film, badge: 0 },
-    { name: 'TV Shows', href: '/tv', icon: Tv, badge: 0 },
-    { name: 'Anime', href: '/anime', icon: Sparkles, badge: 0 },
     // Always shown, signed in or not: hiding it made the social side of
     // the app invisible to anyone logged out. The page itself renders a
     // sign-in prompt rather than an error.
     { name: 'Friends', href: '/friends', icon: Users, badge: user ? pendingRequests : 0 },
   ];
+
+  const watchActive = watchLinks.some((l) => pathname === l.href);
 
   return (
     <nav className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
@@ -120,23 +129,85 @@ const Navbar = () => {
 
         {/* Desktop Navigation (Centered) */}
         <div className="hidden lg:flex items-center justify-center space-x-8">
-          {navLinks.map((link) => (
-            <Link
-              key={link.name}
-              href={link.href}
+          <Link
+            href="/"
+            className={`text-sm font-medium transition-colors hover:text-accent flex items-center space-x-2 ${
+              pathname === '/' ? 'text-accent' : 'text-white/70'
+            }`}
+          >
+            <Home size={16} />
+            <span>Home</span>
+          </Link>
+
+          <div className="relative">
+            <button
+              onClick={() => setIsWatchOpen((v) => !v)}
               className={`text-sm font-medium transition-colors hover:text-accent flex items-center space-x-2 ${
-                pathname === link.href ? 'text-accent' : 'text-white/70'
+                watchActive || isWatchOpen ? 'text-accent' : 'text-white/70'
               }`}
             >
-              <link.icon size={16} />
-              <span>{link.name}</span>
-              {link.badge > 0 && (
-                <span className="min-w-[18px] h-[18px] px-1 rounded-full bg-accent text-white text-[10px] font-bold flex items-center justify-center">
-                  {link.badge > 9 ? '9+' : link.badge}
-                </span>
+              <Clapperboard size={16} />
+              <span>Watch</span>
+              <ChevronDown
+                size={13}
+                className={`transition-transform ${isWatchOpen ? 'rotate-180' : ''}`}
+              />
+            </button>
+
+            <AnimatePresence>
+              {isWatchOpen && (
+                <>
+                  <div className="fixed inset-0 z-10" onClick={() => setIsWatchOpen(false)} />
+                  <motion.div
+                    initial={{ opacity: 0, y: 8, scale: 0.97 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: 8, scale: 0.97 }}
+                    transition={{ duration: 0.13 }}
+                    className="absolute top-full left-0 mt-3 z-20 w-60 rounded-2xl bg-card border border-white/10 shadow-2xl p-2"
+                  >
+                    {watchLinks.map((l) => (
+                      <Link
+                        key={l.href}
+                        href={l.href}
+                        onClick={() => setIsWatchOpen(false)}
+                        className={`flex items-center gap-3 px-3 py-2.5 rounded-xl transition-colors ${
+                          pathname === l.href
+                            ? 'bg-accent/10 text-accent'
+                            : 'text-white/70 hover:bg-white/5 hover:text-white'
+                        }`}
+                      >
+                        <l.icon size={17} className="shrink-0" />
+                        <span className="min-w-0">
+                          <span className="block text-sm font-bold">{l.name}</span>
+                          <span className="block text-[11px] text-muted">{l.desc}</span>
+                        </span>
+                      </Link>
+                    ))}
+                  </motion.div>
+                </>
               )}
-            </Link>
-          ))}
+            </AnimatePresence>
+          </div>
+
+          {navLinks
+            .filter((link) => link.href !== '/')
+            .map((link) => (
+              <Link
+                key={link.name}
+                href={link.href}
+                className={`text-sm font-medium transition-colors hover:text-accent flex items-center space-x-2 ${
+                  pathname === link.href ? 'text-accent' : 'text-white/70'
+                }`}
+              >
+                <link.icon size={16} />
+                <span>{link.name}</span>
+                {link.badge > 0 && (
+                  <span className="min-w-[18px] h-[18px] px-1 rounded-full bg-accent text-white text-[10px] font-bold flex items-center justify-center">
+                    {link.badge > 9 ? '9+' : link.badge}
+                  </span>
+                )}
+              </Link>
+            ))}
         </div>
 
         {/* Search & Actions (Right side) */}
@@ -313,24 +384,61 @@ const Navbar = () => {
             className="md:hidden bg-black/90 backdrop-blur-2xl border-b border-white/10 overflow-hidden"
           >
             <div className="container mx-auto px-6 py-8 flex flex-col space-y-6">
-              {navLinks.map((link) => (
-                <Link
-                  key={link.name}
-                  href={link.href}
-                  onClick={() => setIsMobileMenuOpen(false)}
-                  className={`text-lg font-bold flex items-center space-x-4 ${
-                    pathname === link.href ? 'text-accent' : 'text-white/70'
-                  }`}
-                >
-                  <link.icon size={24} />
-                  <span>{link.name}</span>
-                  {link.badge > 0 && (
-                    <span className="min-w-[20px] h-[20px] px-1.5 rounded-full bg-accent text-white text-xs font-bold flex items-center justify-center">
-                      {link.badge > 9 ? '9+' : link.badge}
-                    </span>
-                  )}
-                </Link>
-              ))}
+              <Link
+                href="/"
+                onClick={() => setIsMobileMenuOpen(false)}
+                className={`text-lg font-bold flex items-center space-x-4 ${
+                  pathname === '/' ? 'text-accent' : 'text-white/70'
+                }`}
+              >
+                <Home size={24} />
+                <span>Home</span>
+              </Link>
+
+              {/* No dropdown on mobile — the sheet has room, and a menu
+                  inside a menu is a worse tap target than an indent. */}
+              <div className="space-y-3">
+                <p className="flex items-center gap-2 text-[10px] font-bold text-white/30 uppercase tracking-widest">
+                  <Clapperboard size={13} />
+                  <span>Watch</span>
+                </p>
+                <div className="pl-4 space-y-3 border-l border-white/10">
+                  {watchLinks.map((l) => (
+                    <Link
+                      key={l.href}
+                      href={l.href}
+                      onClick={() => setIsMobileMenuOpen(false)}
+                      className={`text-lg font-bold flex items-center space-x-4 ${
+                        pathname === l.href ? 'text-accent' : 'text-white/70'
+                      }`}
+                    >
+                      <l.icon size={22} />
+                      <span>{l.name}</span>
+                    </Link>
+                  ))}
+                </div>
+              </div>
+
+              {navLinks
+                .filter((link) => link.href !== '/')
+                .map((link) => (
+                  <Link
+                    key={link.name}
+                    href={link.href}
+                    onClick={() => setIsMobileMenuOpen(false)}
+                    className={`text-lg font-bold flex items-center space-x-4 ${
+                      pathname === link.href ? 'text-accent' : 'text-white/70'
+                    }`}
+                  >
+                    <link.icon size={24} />
+                    <span>{link.name}</span>
+                    {link.badge > 0 && (
+                      <span className="min-w-[20px] h-[20px] px-1.5 rounded-full bg-accent text-white text-xs font-bold flex items-center justify-center">
+                        {link.badge > 9 ? '9+' : link.badge}
+                      </span>
+                    )}
+                  </Link>
+                ))}
             </div>
           </motion.div>
         )}

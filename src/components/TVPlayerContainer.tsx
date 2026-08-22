@@ -11,6 +11,7 @@ import { Star, Calendar, Users, List, Bookmark, ChevronRight, Check } from 'luci
 import { getImageUrl } from '@/lib/imageUrl';
 import WatchlistButton from './WatchlistButton';
 import RecommendButton from './RecommendButton';
+import ShareTitleButton from './ShareTitleButton';
 import WatchRoomButton from './WatchRoomButton';
 import TitleDiscussion from './TitleDiscussion';
 import {
@@ -193,6 +194,14 @@ const TVPlayerContainer = ({ show }: TVPlayerContainerProps) => {
                     mediaId={show.id}
                     title={show.name}
                     posterPath={show.poster_path}
+                  />
+                  <ShareTitleButton
+                    mediaType="tv"
+                    mediaId={show.id}
+                    title={show.name}
+                    posterPath={show.poster_path}
+                    season={activeSeason}
+                    episode={activeEpisode}
                   />
                   <WatchRoomButton
                     mediaType="tv"

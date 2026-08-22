@@ -1,8 +1,12 @@
 'use client';
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import Link from 'next/link';
+import Image from 'next/image';
 import FriendAvatar from './FriendAvatar';
+import { getImageUrl } from '@/lib/imageUrl';
 import UserLink from './UserLink';
+import RichText from '@/lib/richText';
 import {
   getMessages,
   sendMessage,
@@ -12,7 +16,7 @@ import {
   type DmMessage,
   type DmThread,
 } from '@/lib/dm';
-import { Loader2, Send, AlertCircle, ArrowLeft } from 'lucide-react';
+import { Loader2, Send, AlertCircle, ArrowLeft, Film, Tv as TvIcon } from 'lucide-react';
 
 interface DmThreadViewProps {
   thread: DmThread;
@@ -216,7 +220,48 @@ const DmThreadView = ({ thread, myId, onBack, onRead, variant = 'page' }: DmThre
                           : 'bg-white/5 text-white/90 rounded-bl-md'
                       }`}
                     >
-                      <p className="text-sm break-words whitespace-pre-wrap">{m.body}</p>
+                      {m.media_id && (
+                        <Link
+                          href={
+                            m.media_type === 'tv'
+                              ? `/tv/${m.media_id}${m.season ? `?season=${m.season}&episode=${m.episode ?? 1}` : ''}`
+                              : `/movie/${m.media_id}`
+                          }
+                          className={`flex items-center gap-2.5 mb-1.5 p-2 rounded-xl border transition-colors ${
+                            mine
+                              ? 'bg-black/20 border-white/20 hover:border-white/40'
+                              : 'bg-black/30 border-white/10 hover:border-accent/40'
+                          }`}
+                        >
+                          <div className="relative w-9 h-12 rounded-md overflow-hidden bg-card shrink-0">
+                            <Image
+                              src={getImageUrl(m.poster_path, 'w185')}
+                              alt={m.media_title ?? ''}
+                              fill
+                              sizes="36px"
+                              className="object-cover"
+                            />
+                          </div>
+                          <div className="min-w-0">
+                            <p className="flex items-center gap-1 text-[9px] font-bold uppercase tracking-widest opacity-70">
+                              {m.media_type === 'tv' ? <TvIcon size={9} /> : <Film size={9} />}
+                              <span>{m.media_type === 'tv' ? 'TV Series' : 'Movie'}</span>
+                            </p>
+                            <p className="text-xs font-bold truncate">{m.media_title}</p>
+                            {m.season != null && m.episode != null && (
+                              <p className="text-[10px] opacity-70">
+                                S{m.season} · E{m.episode}
+                              </p>
+                            )}
+                          </div>
+                        </Link>
+                      )}
+
+                      {m.body && (
+                        <p className="text-sm break-words whitespace-pre-wrap">
+                          <RichText text={m.body} />
+                        </p>
+                      )}
                       <p
                         className={`text-[10px] mt-1 ${
                           mine ? 'text-white/60' : 'text-muted'
