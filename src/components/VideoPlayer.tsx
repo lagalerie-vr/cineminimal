@@ -18,6 +18,8 @@ interface VideoPlayerProps {
   title?: string;
   posterPath?: string;
   videos?: any[];
+  /** Rendered in the toolbar where the mode toggle used to be. */
+  controls?: React.ReactNode;
   onProgress?: (position: { watched: number; duration: number }) => void;
   /**
    * Start on a specific provider by name. Watch rooms use this to prefer
@@ -95,6 +97,7 @@ const VideoPlayer = ({
   title, 
   posterPath,
   videos = [],
+  controls,
   onProgress,
   preferredProvider
 }: VideoPlayerProps) => {
@@ -198,7 +201,6 @@ const VideoPlayer = ({
     window.addEventListener('resize', update);
     return () => window.removeEventListener('resize', update);
   }, [lightsOff, genZMode]);
-  const [isVideoMode, setIsVideoMode] = useState(true); // true = movie/tv, false = trailer
   
   // Find primary trailer
   const primaryTrailer = videos.find((v: any) => v.type === 'Trailer' && v.site === 'YouTube') || videos[0];
@@ -206,7 +208,7 @@ const VideoPlayer = ({
 
   // Record History
   useEffect(() => {
-    if (!user || !isVideoMode) return;
+    if (!user) return;
 
     const recordHistory = async () => {
       try {
@@ -227,7 +229,7 @@ const VideoPlayer = ({
 
     const timer = setTimeout(recordHistory, 10000);
     return () => clearTimeout(timer);
-  }, [user, id, type, season, episode, isVideoMode, posterPath, title]);
+  }, [user, id, type, season, episode, posterPath, title]);
 
   // Live presence heartbeat, so friends can see what you're watching.
   //
@@ -238,7 +240,7 @@ const VideoPlayer = ({
   // cutoff, which is what stops an abandoned tab showing you as watching
   // forever.
   useEffect(() => {
-    if (!user || !isVideoMode || !title) return;
+    if (!user || !title) return;
 
     const beat = () =>
       upsertNowWatching({
@@ -259,7 +261,7 @@ const VideoPlayer = ({
       clearInterval(interval);
       clearNowWatching().catch(() => {});
     };
-  }, [user, id, type, season, episode, isVideoMode, posterPath, title]);
+  }, [user, id, type, season, episode, posterPath, title]);
 
   // Videasy broadcasts its watch history to the parent once a second. It's
   // send-only (there's no inbound command channel), but it's enough to track
@@ -323,13 +325,9 @@ const VideoPlayer = ({
     if (!isLoading) return;
     const timer = setTimeout(() => setIsLoading(false), 15000);
     return () => clearTimeout(timer);
-  }, [isLoading, activeProvider, isVideoMode, season, episode]);
+  }, [isLoading, activeProvider, season, episode]);
 
   const getEmbedUrl = () => {
-    if (!isVideoMode && currentTrailerKey) {
-      return `https://www.youtube.com/embed/${currentTrailerKey}?autoplay=1`;
-    }
-
     // Check if we have an active YouTube selection
     if (activeProvider.name === 'YT_EMBED' && currentTrailerKey) {
       return `https://www.youtube.com/embed/${currentTrailerKey}?autoplay=1`;
@@ -397,14 +395,14 @@ const VideoPlayer = ({
                   <div className="absolute inset-0 flex flex-col items-center justify-center bg-black z-10">
                     <Loader2 className="animate-spin text-accent mb-4" size={40} />
                     <p className="text-muted text-sm font-medium uppercase tracking-widest">
-                      {isVideoMode ? 'Initialising Stream...' : 'Loading Trailer...'}
+                      Initialising Stream...
                     </p>
                   </div>
                 )}
 
                 <iframe
                   ref={iframeRef}
-                  key={`${isVideoMode}-${currentTrailerKey}-${activeProvider.url}-${season}-${episode}`}
+                  key={`${currentTrailerKey}-${activeProvider.url}-${season}-${episode}`}
                   src={getEmbedUrl()}
                   className="w-full h-full"
                   allowFullScreen
@@ -496,44 +494,15 @@ const VideoPlayer = ({
       {/* Mode & Provider Switching */}
       <div className="flex flex-col space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-3 rounded-2xl bg-white/5 border border-white/5 shadow-lg">
-          {/* Watch Mode Toggle */}
-          <div className="flex items-center gap-2 p-1 bg-black/20 rounded-xl">
-            <button
-              onClick={() => {
-                setIsLoading(true);
-                setIsVideoMode(true);
-              }}
-              className={`px-4 py-2 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all flex items-center space-x-2 ${
-                isVideoMode 
-                  ? 'bg-accent text-white shadow-lg' 
-                  : 'text-white/40 hover:text-white'
-              }`}
-            >
-              <PlayCircle size={14} />
-              <span>Watch Main</span>
-            </button>
-            
-            {videos.length > 0 && (
-              <button
-                onClick={() => {
-                  setIsLoading(true);
-                  setIsVideoMode(false);
-                }}
-                className={`px-4 py-2 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all flex items-center space-x-2 ${
-                  !isVideoMode 
-                    ? 'bg-red-500 text-white shadow-lg' 
-                    : 'text-white/40 hover:text-white'
-                }`}
-              >
-                <VideoIcon size={14} />
-                <span>Watch Trailer</span>
-              </button>
-            )}
-          </div>
+          {/* Caller-supplied controls (episode navigation on TV). */}
+          {controls ? (
+            <div className="flex items-center gap-2">{controls}</div>
+          ) : (
+            <span />
+          )}
 
           {/* Server Selection */}
-          {isVideoMode && (
-            <div className="flex items-center gap-1.5 p-1 bg-black/20 rounded-xl overflow-x-auto no-scrollbar">
+          <div className="flex items-center gap-1.5 p-1 bg-black/20 rounded-xl overflow-x-auto no-scrollbar">
               <div className="flex items-center space-x-2 px-2 border-r border-white/10 opacity-40">
                 <Server size={12} />
               </div>
@@ -551,44 +520,12 @@ const VideoPlayer = ({
                   }`}
                 >
                   {provider.name}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Internal Trailer Selector */}
-      {!isVideoMode && videos.length > 0 && (
-        <div className="space-y-4 animate-in fade-in slide-in-from-top-4 duration-500">
-          <div className="flex items-center space-x-2 text-muted px-2">
-            <VideoIcon size={16} className="text-accent" />
-            <span className="text-[10px] font-bold uppercase tracking-widest">Trailers & Clips Menu</span>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {videos.slice(0, 10).map((video) => (
-              <button
-                key={video.id}
-                onClick={() => {
-                  if (currentTrailerKey !== video.key) {
-                    setIsLoading(true);
-                    setCurrentTrailerKey(video.key);
-                  }
-                }}
-                className={`flex items-center space-x-2 px-4 py-2 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all border ${
-                  currentTrailerKey === video.key 
-                    ? 'bg-red-500/20 border-red-500 text-red-500 shadow-lg' 
-                    : 'bg-white/5 border-white/10 text-white/60 hover:text-white hover:border-white/20'
-                }`}
-              >
-                {video.type === 'Trailer' ? <Play size={10} className="fill-current" /> : <Film size={10} />}
-                <span className="max-w-[120px] truncate">{video.name}</span>
-                <span className="text-[8px] opacity-40 px-1.5 py-0.5 rounded bg-white/10 group-hover:bg-white/20 transition-colors uppercase tracking-tighter">{video.type}</span>
               </button>
             ))}
           </div>
         </div>
-      )}
+      </div>
+
     </div>
   );
 };

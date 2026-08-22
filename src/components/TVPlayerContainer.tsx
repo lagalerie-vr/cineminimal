@@ -7,7 +7,17 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useSearchParams, usePathname } from 'next/navigation';
 import VideoPlayer from './VideoPlayer';
 import MovieCard from './MovieCard';
-import { Star, Calendar, Users, List, Bookmark, ChevronRight, Check } from 'lucide-react';
+import {
+  Star,
+  Calendar,
+  Users,
+  List,
+  Bookmark,
+  ChevronRight,
+  Check,
+  ChevronLeft,
+  SkipForward,
+} from 'lucide-react';
 import { getImageUrl } from '@/lib/imageUrl';
 import WatchlistButton from './WatchlistButton';
 import RecommendButton from './RecommendButton';
@@ -18,6 +28,7 @@ import {
   getLastPosition,
   setLastPosition,
   toggleEpisodeWatched,
+  markEpisodeWatched,
   getWatchedKeys,
   getEpisodePositions,
   setEpisodePosition,
@@ -148,6 +159,73 @@ const TVPlayerContainer = ({ show }: TVPlayerContainerProps) => {
     () => seasonsWithEpisodes.reduce((acc: number, s: any) => acc + s.episode_count, 0),
     [seasonsWithEpisodes]
   );
+  // Previous/next across season boundaries: the last episode of a season
+  // is followed by episode 1 of the next, not by nothing.
+  const { prevEpisode, nextEpisode } = useMemo(() => {
+    const idx = seasonsWithEpisodes.findIndex((s: any) => s.season_number === activeSeason);
+    const count =
+      seasonsWithEpisodes.find((s: any) => s.season_number === activeSeason)?.episode_count ?? 0;
+
+    let prev: { season: number; episode: number } | null = null;
+    let next: { season: number; episode: number } | null = null;
+
+    if (activeEpisode > 1) {
+      prev = { season: activeSeason, episode: activeEpisode - 1 };
+    } else if (idx > 0) {
+      const ps = seasonsWithEpisodes[idx - 1];
+      prev = { season: ps.season_number, episode: ps.episode_count };
+    }
+
+    if (activeEpisode < count) {
+      next = { season: activeSeason, episode: activeEpisode + 1 };
+    } else if (idx >= 0 && idx < seasonsWithEpisodes.length - 1) {
+      next = { season: seasonsWithEpisodes[idx + 1].season_number, episode: 1 };
+    }
+
+    return { prevEpisode: prev, nextEpisode: next };
+  }, [seasonsWithEpisodes, activeSeason, activeEpisode]);
+
+  // Advancing implies you finished the one you were on, so mark it —
+  // markEpisodeWatched, not toggleEpisodeWatched, or hitting Next on an
+  // already-watched episode would silently un-mark it.
+  const goToNextEpisode = () => {
+    markEpisodeWatched(show.id, activeSeason, activeEpisode);
+    setWatchedKeys(getWatchedKeys(show.id));
+    if (nextEpisode) selectEpisode(nextEpisode.season, nextEpisode.episode);
+  };
+
+  const episodeControls = (
+    <>
+      <button
+        onClick={() => prevEpisode && selectEpisode(prevEpisode.season, prevEpisode.episode)}
+        disabled={!prevEpisode}
+        className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-black/20 text-[10px] font-bold uppercase tracking-widest text-white/50 hover:text-white disabled:opacity-25 disabled:cursor-not-allowed transition-all"
+        title={
+          prevEpisode
+            ? `Play S${prevEpisode.season} E${prevEpisode.episode}`
+            : 'This is the first episode'
+        }
+      >
+        <ChevronLeft size={14} />
+        <span>Previous</span>
+      </button>
+
+      <button
+        onClick={goToNextEpisode}
+        disabled={!nextEpisode}
+        className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-accent text-[10px] font-bold uppercase tracking-widest text-white shadow-lg hover:bg-accent/90 disabled:opacity-25 disabled:cursor-not-allowed transition-all"
+        title={
+          nextEpisode
+            ? `Mark S${activeSeason} E${activeEpisode} watched and play S${nextEpisode.season} E${nextEpisode.episode}`
+            : 'This is the last episode'
+        }
+      >
+        <span>Next</span>
+        <SkipForward size={14} />
+      </button>
+    </>
+  );
+
   const watchedCount = useMemo(
     () =>
       Array.from(watchedKeys).filter((key) => {
@@ -176,6 +254,7 @@ const TVPlayerContainer = ({ show }: TVPlayerContainerProps) => {
             posterPath={show.poster_path}
             videos={show.videos.results}
             onProgress={handleProgress}
+            controls={episodeControls}
           />
           
           <div className="space-y-6">
@@ -227,6 +306,7 @@ const TVPlayerContainer = ({ show }: TVPlayerContainerProps) => {
                       {currentEpisodeData.overview}
                     </p>
                   )}
+
                 </div>
               )}
 
