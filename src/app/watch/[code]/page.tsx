@@ -33,6 +33,8 @@ import {
   Send,
   AlertCircle,
   Play,
+  Pause,
+  RefreshCw,
   ArrowLeft,
 } from 'lucide-react';
 
@@ -54,6 +56,20 @@ export default function WatchRoomPage() {
   // Latest reported position, so the heartbeat has something to send
   // even between progress events.
   const myPosition = useRef<{ watched: number; duration: number } | null>(null);
+
+  // Fallback clock for providers that broadcast nothing. `at` is when the
+  // anchor was taken, so the estimate is anchor + elapsed while playing.
+  // It cannot see a pause, a seek or a buffering stall — hence the
+  // explicit controls below, and the 'estimated' label on the readout.
+  const [anchor, setAnchor] = useState<{ position: number; at: number } | null>(null);
+  const [playing, setPlaying] = useState(false);
+  const [syncHint, setSyncHint] = useState<string | null>(null);
+
+  const estimateAt = useCallback(
+    (a: { position: number; at: number } | null, isPlaying: boolean) =>
+      a === null ? null : a.position + (isPlaying ? (Date.now() - a.at) / 1000 : 0),
+    []
+  );
 
   const refresh = useCallback(async (roomId: string) => {
     const [m, msg] = await Promise.all([getRoomMembers(roomId), getMessages(roomId)]);
@@ -129,16 +145,57 @@ export default function WatchRoomPage() {
     return () => clearInterval(t);
   }, [room?.starts_at]);
 
-  // Position heartbeat. VideoPlayer's onProgress only fires for providers
-  // that broadcast progress, so this is best-effort by nature.
+  // Position heartbeat. A real reading from the provider always wins; the
+  // estimated clock only fills in for the embeds that broadcast nothing.
   useEffect(() => {
     if (!room) return;
     const t = setInterval(() => {
-      const p = myPosition.current;
-      if (p) reportPosition(room.id, p.watched, p.duration).catch(() => {});
+      const measured = myPosition.current;
+      if (measured) {
+        reportPosition(room.id, measured.watched, measured.duration, 'measured').catch(() => {});
+        return;
+      }
+      const est = estimateAt(anchor, playing);
+      if (est !== null) {
+        reportPosition(room.id, est, null, 'estimated').catch(() => {});
+      }
     }, 5000);
     return () => clearInterval(t);
-  }, [room?.id]);
+  }, [room?.id, anchor, playing, estimateAt]);
+
+  // A countdown is a shared zero point, so treat it as one: when it
+  // elapses everyone's estimate starts from the same instant without
+  // anyone having to press anything.
+  useEffect(() => {
+    if (!room?.starts_at) return;
+    const startMs = new Date(room.starts_at).getTime();
+    const arm = () => {
+      setAnchor({ position: 0, at: startMs });
+      setPlaying(true);
+    };
+    const delay = startMs - Date.now();
+    if (delay <= 0) {
+      arm();
+      return;
+    }
+    const t = setTimeout(arm, delay);
+    return () => clearTimeout(t);
+  }, [room?.starts_at]);
+
+  // Re-anchor to someone else's position. We can't seek a cross-origin
+  // embed, so this fixes the *readout* and tells you what to do by hand.
+  const syncTo = (target: RoomMember) => {
+    const mine = myPosition.current?.watched ?? estimateAt(anchor, playing) ?? 0;
+    const delta = target.position_seconds - mine;
+    setAnchor({ position: target.position_seconds, at: Date.now() });
+    setPlaying(true);
+    setSyncHint(
+      Math.abs(delta) < 1
+        ? 'Already together.'
+        : `Skip ${delta > 0 ? 'forward' : 'back'} ${formatDrift(delta)} in your player.`
+    );
+    setTimeout(() => setSyncHint(null), 8000);
+  };
 
   const copyLink = async () => {
     if (!room) return;
@@ -318,7 +375,7 @@ export default function WatchRoomPage() {
                   const known = m.position_seconds > 0 || isMe;
 
                   return (
-                    <div key={m.user_id} className="flex items-center gap-3 p-2 rounded-xl">
+                    <div key={m.user_id} className="flex items-center gap-3 p-2 rounded-xl hover:bg-white/[0.03] transition-colors">
                       <UserLink username={isMe ? null : m.username}>
                         <FriendAvatar profile={m} size={32} />
                       </UserLink>
@@ -328,27 +385,79 @@ export default function WatchRoomPage() {
                             {isMe ? 'You' : m.display_name || m.username}
                           </p>
                         </UserLink>
-                        <p className="text-[10px] text-muted">
-                          {!known
-                            ? 'no position yet'
-                            : isMe
-                            ? 'reference'
-                            : offBy <= DRIFT_TOLERANCE_SECONDS
-                            ? 'in sync'
-                            : `${formatDrift(drift)} ${drift > 0 ? 'ahead' : 'behind'}`}
+                        <p className="flex items-center gap-1 text-[10px] text-muted">
+                          <span>
+                            {!known
+                              ? 'no position yet'
+                              : isMe
+                              ? 'reference'
+                              : offBy <= DRIFT_TOLERANCE_SECONDS
+                              ? 'in sync'
+                              : `${formatDrift(drift)} ${drift > 0 ? 'ahead' : 'behind'}`}
+                          </span>
+                          {/* Say which kind of number this is. An estimate
+                              that looks like a measurement is worse than no
+                              number at all. */}
+                          {known && m.position_source === 'estimated' && (
+                            <span className="text-white/25">· est.</span>
+                          )}
                         </p>
                       </div>
+
                       {!isMe && known && (
-                        <span
-                          className={`w-2 h-2 rounded-full shrink-0 ${
-                            offBy <= DRIFT_TOLERANCE_SECONDS ? 'bg-accent' : 'bg-yellow-500'
-                          }`}
-                        />
+                        <>
+                          <button
+                            onClick={() => syncTo(m)}
+                            className="p-1.5 rounded-lg text-white/30 hover:text-accent hover:bg-accent/10 transition-colors shrink-0"
+                            title={`Match ${m.display_name || m.username}'s position`}
+                          >
+                            <RefreshCw size={13} />
+                          </button>
+                          <span
+                            className={`w-2 h-2 rounded-full shrink-0 ${
+                              offBy <= DRIFT_TOLERANCE_SECONDS ? 'bg-accent' : 'bg-yellow-500'
+                            }`}
+                          />
+                        </>
                       )}
                     </div>
                   );
                 })}
               </div>
+              {syncHint && (
+                <p className="px-3 py-2 rounded-xl bg-accent/10 border border-accent/20 text-[11px] text-accent">
+                  {syncHint}
+                </p>
+              )}
+
+              {/* Only worth showing when the provider tells us nothing —
+                  with real progress these controls would fight the truth. */}
+              {!hasProgress && (
+                <div className="flex items-center gap-2 px-1">
+                  <button
+                    onClick={() => {
+                      const current = estimateAt(anchor, playing) ?? 0;
+                      setAnchor({ position: current, at: Date.now() });
+                      setPlaying((v) => !v);
+                    }}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/5 border border-white/10 text-[10px] font-bold text-white/70 hover:text-white transition-colors"
+                  >
+                    {playing ? <Pause size={11} /> : <Play size={11} />}
+                    <span>{playing ? 'Pause timer' : 'Start timer'}</span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      setAnchor({ position: 0, at: Date.now() });
+                      setPlaying(true);
+                    }}
+                    className="px-3 py-1.5 rounded-xl bg-white/5 border border-white/10 text-[10px] font-bold text-white/70 hover:text-white transition-colors"
+                    title="Tell the room you just started from the beginning"
+                  >
+                    At 0:00
+                  </button>
+                </div>
+              )}
+
               {others.length === 0 && (
                 <p className="text-[11px] text-muted px-1">
                   Share the link above to bring friends in.

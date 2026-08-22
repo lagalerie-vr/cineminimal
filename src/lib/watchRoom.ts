@@ -26,10 +26,18 @@ export interface WatchRoom {
   created_at: string;
 }
 
+export type PositionSource = 'measured' | 'estimated';
+
 export interface RoomMember {
   user_id: string;
   position_seconds: number;
   duration_seconds: number | null;
+  /**
+   * 'measured' comes from the provider's own progress broadcast.
+   * 'estimated' is a local clock anchored to a shared start — right
+   * until someone pauses, seeks or buffers, which it cannot see.
+   */
+  position_source: PositionSource;
   updated_at: string;
   username: string;
   display_name: string | null;
@@ -127,15 +135,17 @@ export async function getRoomMembers(roomId: string): Promise<RoomMember[]> {
   return ((data ?? []) as any[]).map((m) => ({
     ...m,
     position_seconds: Number(m.position_seconds ?? 0),
+    position_source: (m.position_source ?? 'estimated') as PositionSource,
     duration_seconds: m.duration_seconds == null ? null : Number(m.duration_seconds),
   }));
 }
 
-/** Reports your own playback position. Fed by the player's progress signal. */
+/** Reports your own playback position, measured or estimated. */
 export async function reportPosition(
   roomId: string,
   positionSeconds: number,
-  durationSeconds?: number | null
+  durationSeconds?: number | null,
+  source: PositionSource = 'estimated'
 ): Promise<void> {
   const userId = await currentUserId();
   if (!userId) return;
@@ -146,6 +156,7 @@ export async function reportPosition(
       user_id: userId,
       position_seconds: positionSeconds,
       duration_seconds: durationSeconds ?? null,
+      position_source: source,
       updated_at: new Date().toISOString(),
     },
     { onConflict: 'room_id,user_id' }
